@@ -1,0 +1,10 @@
+notes
+build/
+.idea/
+.vscode/ 
+*.xml
+*.csv
+*.log
+*.mob
+__pycache__/
+routing_table
