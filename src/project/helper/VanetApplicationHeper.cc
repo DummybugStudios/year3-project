@@ -1,6 +1,6 @@
 #include "ns3/core-module.h"
 
-#include "VanetApplication.h"
+#include "ns3/VanetApplication.h"
 #include "VanetApplicationHeper.h"
 
 using namespace ns3;
