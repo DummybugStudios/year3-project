@@ -8,3 +8,4 @@ build/
 *.mob
 __pycache__/
 routing_table
+*.gz

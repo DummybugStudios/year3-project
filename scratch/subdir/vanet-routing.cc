@@ -1541,7 +1541,7 @@ static ns3::GlobalValue g_phyMode ("VRCphyMode",
                                    ns3::MakeStringChecker ());
 static ns3::GlobalValue g_traceFile ("VRCtraceFile",
                                      "Mobility trace filename",
-                                     ns3::StringValue ("./src/wave/examples/low99-ct-unterstrass-1day.filt.7.adj.mob"),
+                                     ns3::StringValue ("./scratch/subdir/mob/grid.ns_movements"),
                                      ns3::MakeStringChecker ());
 static ns3::GlobalValue g_logFile ("VRClogFile",
                                    "Log filename",
@@ -2427,11 +2427,11 @@ VanetRoutingExperiment::SetupScenario ()
     {
       // Realistic vehicular trace in 4.6 km x 3.0 km suburban Zurich
       // "low density, 99 total vehicles"
-      m_traceFile = "src/wave/examples/low99-ct-unterstrass-1day.filt.7.adj.mob";
+      m_traceFile = "scratch/subdir/mob/grid.ns_movements";
       m_logFile = "low99-ct-unterstrass-1day.filt.7.adj.log";
       m_mobility = 1;
       m_nNodes = 99;
-      m_TotalSimTime = 300.01;
+      m_TotalSimTime = 120;
       m_nodeSpeed = 0;
       m_nodePause = 0;
       m_CSVfileName = "low_vanet-routing-compare.csv";
