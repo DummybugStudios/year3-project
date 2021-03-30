@@ -1258,6 +1258,7 @@ private:
   CourseChange (std::ostream *os, std::string context, Ptr<const MobilityModel> mobility);
 
   uint32_t m_port; ///< port
+  uint32_t m_algo; /// Algorithm for judging the reliability of messages
   std::string m_CSVfileName; ///< CSV file name
   std::string m_CSVfileName2; ///< CSV file name
   uint32_t m_nSinks; ///< number of sinks
@@ -1322,6 +1323,7 @@ private:
 
 VanetRoutingExperiment::VanetRoutingExperiment ()
   : m_port (9),
+    m_algo(0),
     m_CSVfileName ("vanet-routing.output.csv"),
     m_CSVfileName2 ("vanet-routing.output2.csv"),
     m_nSinks (10),
@@ -2061,6 +2063,7 @@ VanetRoutingExperiment::CommandSetup (int argc, char **argv)
   cmd.AddValue ("CSVfileName2", "The name of the CSV output file name2", m_CSVfileName2);
   cmd.AddValue ("totaltime", "Simulation end time", m_TotalSimTime);
   cmd.AddValue ("nodes", "Number of nodes (i.e. vehicles)", m_nNodes);
+  cmd.AddValue ("algo", "0=None;1=Aggregation;2=TRIP", m_algo);
   cmd.AddValue ("sinks", "Number of routing sinks", m_nSinks);
   cmd.AddValue ("txp", "Transmit power (dB), e.g. txp=7.5", m_txp);
   cmd.AddValue ("traceMobility", "Enable mobility tracing", m_traceMobility);
