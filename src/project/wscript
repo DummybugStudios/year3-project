@@ -9,6 +9,7 @@
 def build(bld):
     module = bld.create_ns3_module('project', ['core'])
     module.source = [
+        'model/AggregateApplication.cc',
         'model/VanetApplication.cc',
         'model/RoadEvents.cc',
         'model/EventLogger.cc',
@@ -28,6 +29,7 @@ def build(bld):
     headers = bld(features='ns3header')
     headers.module = 'project'
     headers.source = [
+        'model/AggregateApplication.h',
         'model/VanetApplication.h',
         'model/RoadEvents.h',
         'model/EventLogger.h',

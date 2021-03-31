@@ -1648,8 +1648,8 @@ VanetRoutingExperiment::ConfigureApplications ()
 
   
   // TODO: put this code in a function or something please
-  VanetApplicationHelper evilAppHelper(true);
-  VanetApplicationHelper goodAppHelper(false);
+  VanetApplicationHelper evilAppHelper(true, m_algo);
+  VanetApplicationHelper goodAppHelper(false, m_algo);
   
   int evilNodes = m_nNodes/10;
 
