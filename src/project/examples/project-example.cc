@@ -117,7 +117,7 @@
 #include "ns3/flow-monitor-module.h"
 #include "ns3/config-store-module.h"
 #include "ns3/integer.h"
-#include "ns3/wave-bsm-helper.h"
+#include "ns3/project-bsm-helper.h"
 #include "ns3/wave-helper.h"
 #include "ns3/yans-wifi-helper.h"
 #include "ns3/netanim-module.h"
@@ -1299,7 +1299,7 @@ private:
   std::string m_loadConfigFilename; ///< load config file name
   std::string m_saveConfigFilename; ///< save configi file name
 
-  WaveBsmHelper m_waveBsmHelper; ///< helper
+  ProjectBsmHelper m_waveBsmHelper; ///< helper
   Ptr<RoutingHelper> m_routingHelper; ///< routing helper
   Ptr<WifiPhyStats> m_wifiPhyStats; ///< wifi phy statistics
   int m_log; ///< log
@@ -1644,7 +1644,7 @@ VanetRoutingExperiment::ConfigureApplications ()
   SetupRoutingMessages ();
 
   // Disabling BSM messages while testing custom application
-  // SetupWaveMessages ();
+  SetupWaveMessages ();
 
   
   // TODO: put this code in a function or something please
@@ -1782,7 +1782,7 @@ CourseChange (std::ostream *os, std::string context, Ptr<const MobilityModel> mo
   double t = (Simulator::Now ()).GetSeconds ();
   if (t >= 1.0)
     {
-      WaveBsmHelper::GetNodesMoving ()[nodeId] = 1;
+      ProjectBsmHelper::GetNodesMoving ()[nodeId] = 1;
     }
 
   //NS_LOG_UNCOND ("Changing pos for node=" << nodeId << " at " << Simulator::Now () );
@@ -2180,7 +2180,7 @@ VanetRoutingExperiment::SetupAdhocMobilityNodes ()
       Ns2MobilityHelper ns2 = Ns2MobilityHelper (m_traceFile);
       ns2.Install (); // configure movements for each node, while reading trace file
       // initially assume all nodes are not moving
-      WaveBsmHelper::GetNodesMoving ().resize (m_nNodes, 0);
+      ProjectBsmHelper::GetNodesMoving ().resize (m_nNodes, 0);
     }
   else if (m_mobility == 2)
     {
@@ -2209,7 +2209,7 @@ VanetRoutingExperiment::SetupAdhocMobilityNodes ()
       m_streamIndex += mobilityAdhoc.AssignStreams (m_adhocTxNodes, m_streamIndex);
 
       // initially assume all nodes are moving
-      WaveBsmHelper::GetNodesMoving ().resize (m_nNodes, 1);
+      ProjectBsmHelper::GetNodesMoving ().resize (m_nNodes, 1);
     }
 
   // Configure callback for logging

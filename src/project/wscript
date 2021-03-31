@@ -9,11 +9,13 @@
 def build(bld):
     module = bld.create_ns3_module('project', ['core'])
     module.source = [
+        'model/project-bsm-application.cc',
         'model/AggregateApplication.cc',
         'model/VanetApplication.cc',
         'model/RoadEvents.cc',
         'model/EventLogger.cc',
-        'helper/VanetApplicationHeper.cc'
+        'helper/VanetApplicationHeper.cc',
+        'helper/project-bsm-helper.cc',
         ]
 
     module_test = bld.create_ns3_module_test_library('project')
@@ -29,11 +31,13 @@ def build(bld):
     headers = bld(features='ns3header')
     headers.module = 'project'
     headers.source = [
+        'model/project-bsm-application.h',
         'model/AggregateApplication.h',
         'model/VanetApplication.h',
         'model/RoadEvents.h',
         'model/EventLogger.h',
-        'helper/VanetApplicationHeper.h'
+        'helper/VanetApplicationHeper.h',
+        'helper/project-bsm-helper.h',
         ]
 
     if bld.env.ENABLE_EXAMPLES:
