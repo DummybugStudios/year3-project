@@ -122,9 +122,9 @@
 #include "ns3/yans-wifi-helper.h"
 #include "ns3/netanim-module.h"
 
-#include "VanetApplicationHeper.h"
-#include "RoadEvents.h"
-#include "EventLogger.h"
+#include "ns3/VanetApplicationHeper.h"
+#include "ns3/RoadEvents.h"
+#include "ns3/EventLogger.h"
 
 
 using namespace ns3;
@@ -1258,6 +1258,7 @@ private:
   CourseChange (std::ostream *os, std::string context, Ptr<const MobilityModel> mobility);
 
   uint32_t m_port; ///< port
+  uint32_t m_algo; /// Algorithm for judging the reliability of messages
   std::string m_CSVfileName; ///< CSV file name
   std::string m_CSVfileName2; ///< CSV file name
   uint32_t m_nSinks; ///< number of sinks
@@ -1322,6 +1323,7 @@ private:
 
 VanetRoutingExperiment::VanetRoutingExperiment ()
   : m_port (9),
+    m_algo(0),
     m_CSVfileName ("vanet-routing.output.csv"),
     m_CSVfileName2 ("vanet-routing.output2.csv"),
     m_nSinks (10),
@@ -1541,7 +1543,7 @@ static ns3::GlobalValue g_phyMode ("VRCphyMode",
                                    ns3::MakeStringChecker ());
 static ns3::GlobalValue g_traceFile ("VRCtraceFile",
                                      "Mobility trace filename",
-                                     ns3::StringValue ("./scratch/subdir/mob/grid.ns_movements"),
+                                     ns3::StringValue ("src/project/examples/mob/grid.ns_movements"),
                                      ns3::MakeStringChecker ());
 static ns3::GlobalValue g_logFile ("VRClogFile",
                                    "Log filename",
@@ -1646,8 +1648,8 @@ VanetRoutingExperiment::ConfigureApplications ()
 
   
   // TODO: put this code in a function or something please
-  VanetApplicationHelper evilAppHelper(true);
-  VanetApplicationHelper goodAppHelper(false);
+  VanetApplicationHelper evilAppHelper(true, m_algo);
+  VanetApplicationHelper goodAppHelper(false, m_algo);
   
   int evilNodes = m_nNodes/10;
 
@@ -2061,6 +2063,7 @@ VanetRoutingExperiment::CommandSetup (int argc, char **argv)
   cmd.AddValue ("CSVfileName2", "The name of the CSV output file name2", m_CSVfileName2);
   cmd.AddValue ("totaltime", "Simulation end time", m_TotalSimTime);
   cmd.AddValue ("nodes", "Number of nodes (i.e. vehicles)", m_nNodes);
+  cmd.AddValue ("algo", "0=None;1=Aggregation;2=TRIP", m_algo);
   cmd.AddValue ("sinks", "Number of routing sinks", m_nSinks);
   cmd.AddValue ("txp", "Transmit power (dB), e.g. txp=7.5", m_txp);
   cmd.AddValue ("traceMobility", "Enable mobility tracing", m_traceMobility);
@@ -2427,7 +2430,7 @@ VanetRoutingExperiment::SetupScenario ()
     {
       // Realistic vehicular trace in 4.6 km x 3.0 km suburban Zurich
       // "low density, 99 total vehicles"
-      m_traceFile = "scratch/subdir/mob/grid.ns_movements";
+      m_traceFile = "src/project/examples/mob/grid.ns_movements";
       m_logFile = "low99-ct-unterstrass-1day.filt.7.adj.log";
       m_mobility = 1;
       m_nNodes = 99;
