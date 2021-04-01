@@ -2499,7 +2499,7 @@ main (int argc, char *argv[])
   RoadEventManger::setupEvents(160,1200,1200);
   RoadEventManger::debugPrintEvents();
   LogComponentEnable("VanetApplication", LOG_INFO);
-  // LogComponentEnable("BsmApplication", LOG_ALL);
+  // LogComponentEnable("ProjectBsmApplication", LOG_ALL);
   VanetRoutingExperiment experiment;
   experiment.Simulate (argc, argv);
   EventLogger::printStats();

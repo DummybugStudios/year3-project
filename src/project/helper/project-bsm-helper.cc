@@ -19,7 +19,7 @@
  *
  */
 
-#include "ns3/project-bsm-helper.h"
+#include "project-bsm-helper.h"
 #include "ns3/log.h"
 
 
@@ -102,7 +102,7 @@ ProjectBsmHelper::Install (Ipv4InterfaceContainer & i,
 
   // install a ProjectBsmApplication on each node
   ApplicationContainer bsmApps = Install (i);
-  // start BSM app immediately (BsmApplication will
+  // start BSM app immediately (ProjectBsmApplication will
   // delay transmission of first BSM by 1.0 seconds)
   bsmApps.Start (Seconds (0));
   bsmApps.Stop (totalTime);

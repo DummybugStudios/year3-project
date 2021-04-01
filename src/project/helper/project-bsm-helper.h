@@ -59,20 +59,20 @@ public:
   void SetAttribute (std::string name, const AttributeValue &value);
 
   /**
-   * Install an ns3::BsmApplication on each node of the input container
+   * Install an ns3::ProjectBsmApplication on each node of the input container
    * configured with all the attributes set with SetAttribute.
    *
-   * \param i Ipv4InterfaceContainer of the set of interfaces on which an BsmApplication
+   * \param i Ipv4InterfaceContainer of the set of interfaces on which an ProjectBsmApplication
    * will be installed on the nodes.
    * \returns Container of Ptr to the applications installed.
    */
   ApplicationContainer Install (Ipv4InterfaceContainer i) const;
 
   /**
-   * Install an ns3::BsmApplication on the node configured with all the
+   * Install an ns3::ProjectBsmApplication on the node configured with all the
    * attributes set with SetAttribute.
    *
-   * \param node The node on which an BsmApplication will be installed.
+   * \param node The node on which an ProjectBsmApplication will be installed.
    * \returns Container of Ptr to the applications installed.
    */
   ApplicationContainer Install (Ptr<Node> node) const;
@@ -116,7 +116,7 @@ public:
    * called by the user.
    *
    * \param stream first stream index to use
-   * \param c NodeContainer of the set of nodes for which the BsmApplication
+   * \param c NodeContainer of the set of nodes for which the ProjectBsmApplication
    *          should be modified to use a fixed stream
    * \return the number of stream indices assigned by this helper
    */
@@ -130,9 +130,9 @@ public:
 
 private:
   /**
-   * Install an ns3::BsmApplication on the node
+   * Install an ns3::ProjectBsmApplication on the node
    *
-   * \param node The node on which an BsmApplication will be installed.
+   * \param node The node on which an ProjectBsmApplication will be installed.
    * \returns Ptr to the application installed.
    */
   Ptr<Application> InstallPriv (Ptr<Node> node) const;
