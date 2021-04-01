@@ -25,139 +25,125 @@
 
 namespace ns3 {
 
-std::vector<int> ProjectBsmHelper::nodesMoving;
+    std::vector<int> ProjectBsmHelper::nodesMoving;
 
-ProjectBsmHelper::ProjectBsmHelper ()
-  : m_waveBsmStats ()
-{
-  m_txSafetyRangesSq.resize (10, 0);
-  m_txSafetyRangesSq[0] = 50.0 * 50.0;
-  m_txSafetyRangesSq[1] = 100.0 * 100.0;
-  m_txSafetyRangesSq[2] = 200.0 * 200.0;
-  m_txSafetyRangesSq[3] = 300.0 * 300.0;
-  m_txSafetyRangesSq[4] = 400.0 * 400.0;
-  m_txSafetyRangesSq[5] = 500.0 * 500.0;
-  m_txSafetyRangesSq[6] = 600.0 * 600.0;
-  m_txSafetyRangesSq[7] = 800.0 * 800.0;
-  m_txSafetyRangesSq[8] = 1000.0 * 1000.0;
-  m_txSafetyRangesSq[9] = 1500.0 * 1500.0;
+    ProjectBsmHelper::ProjectBsmHelper()
+            : m_waveBsmStats() {
+        m_txSafetyRangesSq.resize(10, 0);
+        m_txSafetyRangesSq[0] = 50.0 * 50.0;
+        m_txSafetyRangesSq[1] = 100.0 * 100.0;
+        m_txSafetyRangesSq[2] = 200.0 * 200.0;
+        m_txSafetyRangesSq[3] = 300.0 * 300.0;
+        m_txSafetyRangesSq[4] = 400.0 * 400.0;
+        m_txSafetyRangesSq[5] = 500.0 * 500.0;
+        m_txSafetyRangesSq[6] = 600.0 * 600.0;
+        m_txSafetyRangesSq[7] = 800.0 * 800.0;
+        m_txSafetyRangesSq[8] = 1000.0 * 1000.0;
+        m_txSafetyRangesSq[9] = 1500.0 * 1500.0;
 
-  m_factory.SetTypeId ("ProjectBsmApplication");
-}
-
-void
-ProjectBsmHelper::SetAttribute (std::string name, const AttributeValue &value)
-{
-  m_factory.Set (name, value);
-}
-
-ApplicationContainer
-ProjectBsmHelper::Install (Ptr<Node> node) const
-{
-  return ApplicationContainer (InstallPriv (node));
-}
-
-ApplicationContainer
-ProjectBsmHelper::Install (Ipv4InterfaceContainer i) const
-{
-  ApplicationContainer apps;
-  for (Ipv4InterfaceContainer::Iterator itr = i.Begin (); itr != i.End (); ++itr)
-    {
-      std::pair<Ptr<Ipv4>, uint32_t> interface = (*itr);
-      Ptr<Ipv4> pp = interface.first;
-      Ptr<Node> node = pp->GetObject<Node> ();
-      apps.Add (InstallPriv (node));
+        m_factory.SetTypeId("ProjectBsmApplication");
     }
 
-  return apps;
-}
-
-Ptr<Application>
-ProjectBsmHelper::InstallPriv (Ptr<Node> node) const
-{
-  Ptr<Application> app = m_factory.Create<Application> ();
-  node->AddApplication (app);
-
-  return app;
-}
-
-void
-ProjectBsmHelper::Install (Ipv4InterfaceContainer & i,
-                        Time totalTime,          // seconds
-                        uint32_t wavePacketSize, // bytes
-                        Time waveInterval,       // seconds
-                        double gpsAccuracyNs,    // clock drift range in number of ns
-                        std::vector <double> ranges,           // m
-                        int chAccessMode,        // channel access mode
-                        Time txMaxDelay)         // max delay prior to transmit
-{
-  int size = ranges.size ();
-  m_txSafetyRangesSq.clear ();
-  m_txSafetyRangesSq.resize (size, 0);
-  for (int index = 0; index < size; index++)
-    {
-      // stored as square of value, for optimization
-      m_txSafetyRangesSq[index] = ranges[index] * ranges[index];
+    void
+    ProjectBsmHelper::SetAttribute(std::string name, const AttributeValue &value) {
+        m_factory.Set(name, value);
     }
 
-  // install a ProjectBsmApplication on each node
-  ApplicationContainer bsmApps = Install (i);
-  // start BSM app immediately (ProjectBsmApplication will
-  // delay transmission of first BSM by 1.0 seconds)
-  bsmApps.Start (Seconds (0));
-  bsmApps.Stop (totalTime);
-
-  // for each app, setup the app parameters
-  ApplicationContainer::Iterator aci;
-  int nodeId = 0;
-  for (aci = bsmApps.Begin (); aci != bsmApps.End (); ++aci)
-    {
-      Ptr<ProjectBsmApplication> bsmApp = DynamicCast<ProjectBsmApplication> (*aci);
-      bsmApp->Setup (i,
-                     nodeId,
-                     totalTime,
-                     wavePacketSize,
-                     waveInterval,
-                     gpsAccuracyNs,
-                     m_txSafetyRangesSq,
-                     GetWaveBsmStats (),
-                     &nodesMoving,
-                     chAccessMode,
-                     txMaxDelay);
-      nodeId++;
+    ApplicationContainer
+    ProjectBsmHelper::Install(Ptr <Node> node) const {
+        return ApplicationContainer(InstallPriv(node));
     }
-}
 
-Ptr<WaveBsmStats>
-ProjectBsmHelper::GetWaveBsmStats ()
-{
-  return &m_waveBsmStats;
-}
+    ApplicationContainer
+    ProjectBsmHelper::Install(Ipv4InterfaceContainer i) const {
+        ApplicationContainer apps;
+        for (Ipv4InterfaceContainer::Iterator itr = i.Begin(); itr != i.End(); ++itr) {
+            std::pair <Ptr<Ipv4>, uint32_t> interface = (*itr);
+            Ptr <Ipv4> pp = interface.first;
+            Ptr <Node> node = pp->GetObject<Node>();
+            apps.Add(InstallPriv(node));
+        }
 
-int64_t
-ProjectBsmHelper::AssignStreams (NodeContainer c, int64_t stream)
-{
-  int64_t currentStream = stream;
-  Ptr<Node> node;
-  for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
+        return apps;
+    }
+
+    Ptr <Application>
+    ProjectBsmHelper::InstallPriv(Ptr <Node> node) const {
+        Ptr <Application> app = m_factory.Create<Application>();
+        node->AddApplication(app);
+
+        return app;
+    }
+
+    void
+    ProjectBsmHelper::Install(Ipv4InterfaceContainer &i,
+                              Time totalTime,          // seconds
+                              uint32_t wavePacketSize, // bytes
+                              Time waveInterval,       // seconds
+                              double gpsAccuracyNs,    // clock drift range in number of ns
+                              std::vector<double> ranges,           // m
+                              int chAccessMode,        // channel access mode
+                              Time txMaxDelay)         // max delay prior to transmit
     {
-      node = (*i);
-      for (uint32_t j = 0; j < node->GetNApplications (); j++)
-        {
-          Ptr<ProjectBsmApplication> bsmApp = DynamicCast<ProjectBsmApplication> (node->GetApplication (j));
-          if (bsmApp)
-            {
-              currentStream += bsmApp->AssignStreams (currentStream);
-            }
+        int size = ranges.size();
+        m_txSafetyRangesSq.clear();
+        m_txSafetyRangesSq.resize(size, 0);
+        for (int index = 0; index < size; index++) {
+            // stored as square of value, for optimization
+            m_txSafetyRangesSq[index] = ranges[index] * ranges[index];
+        }
+
+        // install a ProjectBsmApplication on each node
+        ApplicationContainer bsmApps = Install(i);
+        // start BSM app immediately (ProjectBsmApplication will
+        // delay transmission of first BSM by 1.0 seconds)
+        bsmApps.Start(Seconds(0));
+        bsmApps.Stop(totalTime);
+
+        // for each app, setup the app parameters
+        ApplicationContainer::Iterator aci;
+        int nodeId = 0;
+        for (aci = bsmApps.Begin(); aci != bsmApps.End(); ++aci) {
+            Ptr <ProjectBsmApplication> bsmApp = DynamicCast<ProjectBsmApplication>(*aci);
+            bsmApp->Setup(i,
+                          nodeId,
+                          totalTime,
+                          wavePacketSize,
+                          waveInterval,
+                          gpsAccuracyNs,
+                          m_txSafetyRangesSq,
+                          GetWaveBsmStats(),
+                          &nodesMoving,
+                          chAccessMode,
+                          txMaxDelay);
+            nodeId++;
         }
     }
-  return (currentStream - stream);
-}
 
-std::vector<int>&
-ProjectBsmHelper::GetNodesMoving ()
-{
-  return nodesMoving;
-}
+    Ptr <WaveBsmStats>
+    ProjectBsmHelper::GetWaveBsmStats() {
+        return &m_waveBsmStats;
+    }
+
+    int64_t
+    ProjectBsmHelper::AssignStreams(NodeContainer c, int64_t stream) {
+        int64_t currentStream = stream;
+        Ptr <Node> node;
+        for (NodeContainer::Iterator i = c.Begin(); i != c.End(); ++i) {
+            node = (*i);
+            for (uint32_t j = 0; j < node->GetNApplications(); j++) {
+                Ptr <ProjectBsmApplication> bsmApp = DynamicCast<ProjectBsmApplication>(node->GetApplication(j));
+                if (bsmApp) {
+                    currentStream += bsmApp->AssignStreams(currentStream);
+                }
+            }
+        }
+        return (currentStream - stream);
+    }
+
+    std::vector<int> &
+    ProjectBsmHelper::GetNodesMoving() {
+        return nodesMoving;
+    }
 
 } // namespace ns3
