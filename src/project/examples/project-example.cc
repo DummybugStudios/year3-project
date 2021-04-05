@@ -1319,6 +1319,8 @@ private:
   std::vector <double> m_txSafetyRanges; ///< list of ranges
   std::string m_exp; ///< exp
   int m_cumulativeBsmCaptureStart; ///< capture start
+  int m_worldWidth; // Also the world height since I'll just keep it square innit
+  int m_cellSize;
 };
 
 VanetRoutingExperiment::VanetRoutingExperiment ()
@@ -1375,7 +1377,8 @@ VanetRoutingExperiment::VanetRoutingExperiment ()
     m_txSafetyRange10 (500.0),
     m_txSafetyRanges (),
     m_exp (""),
-    m_cumulativeBsmCaptureStart (0)
+    m_cumulativeBsmCaptureStart (0),
+    m_worldWidth(1200) // You don't need this but I'm just cargo cult programming
 {
   m_wifiPhyStats = CreateObject<WifiPhyStats> ();
   m_routingHelper = CreateObject<RoutingHelper> ();
@@ -1561,6 +1564,15 @@ static ns3::GlobalValue g_trName ("VRCtrName",
                                   "Trace name",
                                   ns3::StringValue ("vanet-routing-compare"),
                                   ns3::MakeStringChecker ());
+static ns3::GlobalValue g_worldWidth  ("VRCworldWidth",
+                                       "World width and height",
+                                       ns3::IntegerValue(1200),
+                                       ns3::MakeIntegerChecker<int>());
+
+static ns3::GlobalValue g_cellSize ("VRCcellSize",
+                                    "Cell size that determines group",
+                                    ns3::IntegerValue(300),
+                                    ns3::MakeIntegerChecker<int>());
 
 void
 VanetRoutingExperiment::ParseCommandLineArguments (int argc, char **argv)
@@ -1896,6 +1908,7 @@ VanetRoutingExperiment::SetConfigFromGlobals ()
   UintegerValue uintegerValue;
   DoubleValue doubleValue;
   StringValue stringValue;
+  IntegerValue integerValue;
 
   // This may not be the best way to manage program configuration
   // (directing them through global values), but management
@@ -1986,6 +1999,10 @@ VanetRoutingExperiment::SetConfigFromGlobals ()
   m_phyModeB = stringValue.Get ();
   GlobalValue::GetValueByName ("VRCtrName", stringValue);
   m_trName = stringValue.Get ();
+  GlobalValue::GetValueByName("VRCworldWidth", integerValue);
+  m_worldWidth = integerValue.Get();
+  GlobalValue::GetValueByName("VRCcellSize", integerValue);
+  m_cellSize = integerValue.Get();
 }
 
 void
@@ -2041,6 +2058,8 @@ VanetRoutingExperiment::SetGlobalsFromConfig ()
   g_trName.SetValue (StringValue (m_trName));
   GlobalValue::GetValueByName ("VRCtrName", stringValue);
   m_trName = stringValue.Get ();
+  g_worldWidth.SetValue(IntegerValue(m_worldWidth));
+  g_cellSize.SetValue(IntegerValue(m_cellSize));
 }
 
 void
