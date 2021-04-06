@@ -26,8 +26,14 @@
 #include "ns3/wave-bsm-stats.h"
 #include "ns3/random-variable-stream.h"
 #include "ns3/internet-stack-helper.h"
+#include <map>
 
 namespace ns3 {
+
+    struct nodeinfo{
+        int groupId;
+        long int lastContact;
+    };
 /**
  * \ingroup wave
  * \brief The ProjectBsmApplication class sends and receives the
@@ -100,6 +106,18 @@ namespace ns3 {
         */
         static int wavePort;
 
+        /*
+         * Maps a node id to a number which describes whether a node is in reach or not
+         * Node value being 2 means it was recently in reach.
+         * Node value being 1 means that it was not in reach last time function was called
+         * Node value being 0 means that it is not in reach anymore
+         */
+
+        // TODO: Maybe make a struct to store this?
+        // for every node_id: it stores group_id, and time of last contact
+        // -1 for group means it's not there
+        std::map<unsigned int, nodeinfo *> m_reachableNodes;
+
     protected:
         virtual void DoDispose(void);
 
@@ -107,6 +125,7 @@ namespace ns3 {
         // inherited from Application base class.
         virtual void StartApplication(void);    ///< Called at time specified by Start
         virtual void StopApplication(void);     ///< Called at time specified by Stop
+        void UpdateReachableNodes(void);        ///< Called every 200ms to udpate unreachable nodes
 
         /**
          * \brief Creates and transmits a WAVE BSM packet
@@ -176,6 +195,8 @@ namespace ns3 {
          * max transmit delay (default 10ms) */
         Time m_txMaxDelay;
         Time m_prevTxDelay; ///< previous transmit delay
+        int m_nodeUpdateFrequency = 200;    ///< Time in ms before the UpdateReachableNodes function is run
+        long int m_timeBeforeCarUnreachable = 400; ///< Time in ms before car is considered unreachable
     };
 
 } // namespace ns3

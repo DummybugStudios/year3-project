@@ -26,6 +26,7 @@
 #include "ns3/wave-helper.h"
 #include "ns3/mobility-model.h"
 #include "ns3/mobility-helper.h"
+#include "project-group.h"
 
 #include <iostream>
 
@@ -170,6 +171,7 @@ namespace ns3 {
         Simulator::ScheduleWithContext(recvSink->GetNode()->GetId(),
                                        txTime, &ProjectBsmApplication::GenerateWaveTraffic, this,
                                        recvSink, m_wavePacketSize, m_numWavePackets, waveInterPacketInterval, m_nodeId);
+        Simulator::Schedule(MilliSeconds(m_nodeUpdateFrequency), &ProjectBsmApplication::UpdateReachableNodes, this);
     }
 
     void ProjectBsmApplication::StopApplication() // Called at time specified by Stop
@@ -322,6 +324,25 @@ namespace ns3 {
                                                         Ptr <Node> rxNode) {
         NS_LOG_FUNCTION(this);
 
+        // Include the group ID of txNode and current time inside the recent nodes map
+        auto txPosition = txNode->GetObject<MobilityModel>()->GetPosition();
+        Time currentTime = Simulator::Now();
+        unsigned int nodeId = txNode->GetId();
+        int groupId = Group::GetGroup(txPosition.x, txPosition.y);
+
+        nodeinfo *info;
+        if ( m_reachableNodes.find(nodeId) != m_reachableNodes.end())
+        {
+            info = m_reachableNodes[nodeId];
+            info->groupId = groupId;
+            info->lastContact = currentTime.GetMilliSeconds();
+        }
+        else
+        {
+            info = new nodeinfo{groupId, currentTime.GetMilliSeconds()};
+            m_reachableNodes.insert({nodeId, info});
+        }
+
         m_waveBsmStats->IncRxPktCount();
 
         Ptr <MobilityModel> rxPosition = rxNode->GetObject<MobilityModel>();
@@ -375,6 +396,27 @@ namespace ns3 {
         Ptr <NetDevice> device = pp->GetObject<NetDevice>();
 
         return device;
+    }
+
+    /**
+     * Run every m_NodeUdpateFrequency milliseconds and go through reachableNodes
+     * marking cars which haven't had a value set
+     */
+    void ProjectBsmApplication::UpdateReachableNodes(void) {
+        Time currentTime = Simulator::Now();
+
+        for (auto const& x : m_reachableNodes)
+        {
+            nodeinfo *info = x.second;
+            if (info->lastContact != 0  &&
+            info->lastContact + m_timeBeforeCarUnreachable < currentTime.GetMilliSeconds())
+            {
+                info->groupId = -1;
+                info->lastContact = 0;
+            }
+        }
+
+        Simulator::Schedule(MilliSeconds(m_nodeUpdateFrequency), &ProjectBsmApplication::UpdateReachableNodes, this);
     }
 
 } // namespace ns3
