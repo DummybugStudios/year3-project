@@ -5,6 +5,50 @@
 
 using namespace ns3; 
 
+class AggregateEventPacketHeader : public Header
+{
+public:
+    AggregateEventPacketHeader(){};
+
+    void SetData(uint32_t x, uint32_t y, uint32_t val, uint32_t signatureCount)
+    {
+        m_x = x;
+        m_y = y;
+        m_val = val;
+        m_signatureCount = signatureCount;
+    }
+
+    const uint32_t getX() const {
+        return m_x;
+    }
+
+    const uint32_t getY() const {
+        return m_y;
+    }
+
+    const uint32_t getVal() const {
+        return m_val;
+    }
+
+    const uint32_t getSignatureCount() const {
+        return m_signatureCount;
+    }
+
+    static TypeId GetTypeId();
+    virtual TypeId GetInstanceTypeId() const{return GetTypeId();}
+    virtual void Serialize(Buffer::Iterator start) const;
+    virtual uint32_t Deserialize(Buffer::Iterator start);
+    virtual uint32_t GetSerializedSize() const;
+    virtual void Print (std::ostream &os) const
+    {
+        os << "x: " << m_x << " y: " << m_y << " val: " << m_val << " signatureCount: " << m_signatureCount << std::endl;
+    }
+
+private:
+    uint32_t m_x, m_y, m_val, m_signatureCount;
+
+};
+
 class AggregateApplication : public Application
 {
     public:
