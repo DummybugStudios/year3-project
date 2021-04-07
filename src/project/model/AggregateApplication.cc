@@ -37,6 +37,26 @@ uint32_t AggregateEventPacketHeader::GetSerializedSize() const {
     return sizeof(uint32_t) * 4;
 }
 
+/*
+ * Implementation of Aggregate Trailer
+ */
+
+TypeId AggregateSignatureTrailer::GetTypeId() {
+    static TypeId tid = TypeId("AggregateSignatureTrailer")
+    .SetParent<Trailer>()
+    .AddConstructor<AggregateSignatureTrailer>();
+
+    return tid;
+}
+
+void AggregateSignatureTrailer::Serialize(Buffer::Iterator start) const {
+    start.WriteHtonU32(m_nodeId);
+}
+
+uint32_t AggregateSignatureTrailer::Deserialize(Buffer::Iterator start) {
+    m_nodeId = start.ReadNtohU32();
+    return sizeof(uint32_t);
+}
 
 /*
  * Implementation of Aggregate Application

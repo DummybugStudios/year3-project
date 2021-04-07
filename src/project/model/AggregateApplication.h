@@ -2,6 +2,8 @@
 #define AGGREGATE_APPLICATION_H
 
 #include "ns3/application.h"
+#include "ns3/header.h"
+#include "ns3/trailer.h"
 
 using namespace ns3; 
 
@@ -47,6 +49,34 @@ public:
 private:
     uint32_t m_x, m_y, m_val, m_signatureCount;
 
+};
+
+class AggregateSignatureTrailer : public Trailer
+{
+public:
+    static TypeId GetTypeId();
+    virtual void Serialize(Buffer::Iterator start) const;
+    virtual uint32_t Deserialize(Buffer::Iterator start);
+
+    virtual uint32_t GetSerializedSize() const {return sizeof(uint32_t);}
+    virtual TypeId GetInstanceTypeId() const {return GetTypeId();}
+    virtual void Print(std::ostream &os) const
+    {
+        os << "Trailer contains signature from node: " << m_nodeId << std::endl;
+    }
+
+    void SetSignature(uint32_t nodeId)
+    {
+        m_nodeId = nodeId;
+    }
+
+    uint32_t GetSignature()
+    {
+        return m_nodeId;
+    }
+    // Cryptography is not implemented therefore appending nodeId is the form of signature
+private:
+    uint32_t m_nodeId;
 };
 
 class AggregateApplication : public Application
