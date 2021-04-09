@@ -4,13 +4,16 @@
 #include "ns3/application.h"
 #include "ns3/header.h"
 #include "ns3/trailer.h"
+#include "ns3/random-variable-stream.h"
+#include "ns3/socket.h"
+#include "project-bsm-application.h"
 
 using namespace ns3; 
 
-class AggregateEventPacketHeader : public Header
+class AggregateEventHeader : public Header
 {
 public:
-    AggregateEventPacketHeader(){};
+    AggregateEventHeader(){};
 
     void SetData(uint32_t x, uint32_t y, uint32_t val, uint32_t signatureCount)
     {
@@ -89,7 +92,13 @@ class AggregateApplication : public Application
     private:
     virtual void StartApplication();
     virtual void StopApplication();
+    void PollForEvents();
+    void ReceiveEventPacket(Ptr<Socket> socket);
     bool isEvil;
+    Ptr<UniformRandomVariable> m_unirv;
+    int m_eventPort = 1080;    ///< Port for event communication
+    Ptr<Socket> m_eventSocket;
+    Ptr<ProjectBsmApplication> m_bsmApplication;
 };
 
 #endif
