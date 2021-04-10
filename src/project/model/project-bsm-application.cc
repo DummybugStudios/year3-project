@@ -327,20 +327,19 @@ namespace ns3 {
         // Include the group ID of txNode and current time inside the recent nodes map
         auto txPosition = txNode->GetObject<MobilityModel>()->GetPosition();
         Time currentTime = Simulator::Now();
-        unsigned int nodeId = txNode->GetId();
         int groupId = Group::GetGroup(txPosition.x, txPosition.y);
 
         nodeinfo *info;
-        if ( m_reachableNodes.find(nodeId) != m_reachableNodes.end())
+        if ( m_reachableNodes.find(txNode) != m_reachableNodes.end())
         {
-            info = m_reachableNodes[nodeId];
+            info = m_reachableNodes[txNode];
             info->groupId = groupId;
             info->lastContact = currentTime.GetMilliSeconds();
         }
         else
         {
             info = new nodeinfo{groupId, currentTime.GetMilliSeconds()};
-            m_reachableNodes.insert({nodeId, info});
+            m_reachableNodes.insert({txNode, info});
         }
 
         m_waveBsmStats->IncRxPktCount();

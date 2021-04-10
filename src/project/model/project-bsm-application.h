@@ -114,9 +114,9 @@ namespace ns3 {
          */
 
         // TODO: Maybe make a struct to store this?
-        // for every node_id: it stores group_id, and time of last contact
+        // for every node, it stores group_id, and time of last contact
         // -1 for group means it's not there
-        std::map<unsigned int, nodeinfo *> m_reachableNodes;
+        std::map<Ptr<Node>, nodeinfo *> m_reachableNodes;
 
     protected:
         virtual void DoDispose(void);

@@ -5,6 +5,7 @@
 #include "ns3/type-id.h"
 #include "RoadEvents.h"
 #include "ns3/mobility-model.h"
+#include "project-group.h"
 
 using namespace ns3;
 
@@ -52,6 +53,7 @@ TypeId AggregateSignatureTrailer::GetTypeId() {
 }
 
 void AggregateSignatureTrailer::Serialize(Buffer::Iterator start) const {
+    start.Prev(GetSerializedSize());
     start.WriteHtonU32(m_nodeId);
 }
 
@@ -63,6 +65,17 @@ uint32_t AggregateSignatureTrailer::Deserialize(Buffer::Iterator start) {
 /*
  * Implementation of Aggregate Application
  */
+
+// Small helper function to an ipv4 address from a node
+Ipv4Address getNodeAddress(Ptr<Node> node)
+{
+    Ptr<Ipv4> ipv4 = node->GetObject<Ipv4>();
+    // TODO: interface will not always be 1
+    Ipv4InterfaceAddress iaddr = ipv4->GetAddress(1,0);
+    return iaddr.GetLocal();
+
+}
+
 TypeId AggregateApplication::GetTypeId()
 { 
     static TypeId tid = TypeId("AggregateApplication")
@@ -109,7 +122,7 @@ void AggregateApplication::PollForEvents()
 {
 
     auto position = GetNode()->GetObject<MobilityModel>()->GetPosition();
-    RoadEvent *event = RoadEventManger::getNearestEvent((int)position.x, (int)position.y, 20);
+    RoadEvent *event = RoadEventManger::getNearestEvent((int)position.x, (int)position.y, 100);
 
     if (event != nullptr)
     {
@@ -121,9 +134,25 @@ void AggregateApplication::PollForEvents()
 
         AggregateSignatureTrailer trailer;
         trailer.SetSignature(GetNode()->GetId());
-
         p->AddTrailer(trailer);
+
+        // Create a socket that will send the packet
+        TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
+        Ptr<Socket> socket = Socket::CreateSocket(GetNode(), tid);
+
         // Get a list of cars in the group from the BSM application
+        int groupId = Group::GetGroup(position.x, position.y);
+
+        // TODO: stop using the direct access to m_reachableNodes and find other methods
+        for (auto const &x : m_bsmApplication->m_reachableNodes)
+        {
+            if (x.second->groupId == groupId)
+            {
+                InetSocketAddress remote = InetSocketAddress(getNodeAddress(x.first), m_eventPort);
+                socket->Connect(remote);
+                socket->Send(p);
+            }
+        }
 
     }
     Simulator::Schedule(MilliSeconds(1000 + m_unirv->GetInteger(0,10.0f)), &AggregateApplication::PollForEvents, this);
@@ -131,6 +160,9 @@ void AggregateApplication::PollForEvents()
 
 void AggregateApplication::ReceiveEventPacket(Ptr<Socket> socket)
 {
+    int self = GetNode()->GetId();
+    int other = socket->GetNode()->GetId();
+    std::cout<< self << " Received message from " << other << std::endl;
 }
 
 void AggregateApplication::StopApplication()
