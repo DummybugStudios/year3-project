@@ -125,7 +125,7 @@ void VanetApplication::StartLoop()
             InetSocketAddress local = InetSocketAddress(Ipv4Address::GetAny(), m_port);
 
 
-            Ptr<NetDevice> device = GetNode()->GetObject<NetDevice>();
+            Ptr<NetDevice> device = GetNode()->GetDevice(0);
             m_socket->BindToNetDevice(device);
             m_socket->Bind(local);
             m_socket->SetAllowBroadcast(true);
