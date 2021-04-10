@@ -7,6 +7,7 @@
 #include "ns3/random-variable-stream.h"
 #include "ns3/socket.h"
 #include "project-bsm-application.h"
+#include "RoadEvents.h"
 
 using namespace ns3; 
 
@@ -23,20 +24,25 @@ public:
         m_signatureCount = signatureCount;
     }
 
-    const uint32_t getX() const {
+    const int GetX() const {
         return m_x;
     }
 
-    const uint32_t getY() const {
+    const int GetY() const {
         return m_y;
     }
 
-    const uint32_t getVal() const {
+    const int GetVal() const {
         return m_val;
     }
 
-    const uint32_t getSignatureCount() const {
+    const int GetSignatureCount() const {
         return m_signatureCount;
+    }
+
+    void IncrementSignatureCount()
+    {
+        m_signatureCount++;
     }
 
     static TypeId GetTypeId();
@@ -94,11 +100,13 @@ class AggregateApplication : public Application
     virtual void StopApplication();
     void PollForEvents();
     void ReceiveEventPacket(Ptr<Socket> socket);
+    bool SendToNearbyNodes(Ptr<Packet> p);
     bool isEvil;
     Ptr<UniformRandomVariable> m_unirv;
     int m_eventPort = 1080;    ///< Port for event communication
     Ptr<Socket> m_eventSocket;
     Ptr<ProjectBsmApplication> m_bsmApplication;
+    std::vector<RoadEvent *> m_recentEvents;
 };
 
 #endif

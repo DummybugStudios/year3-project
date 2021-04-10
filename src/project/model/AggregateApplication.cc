@@ -1,9 +1,9 @@
 #include <iostream>
+#include <vector>
 #include "AggregateApplication.h"
 
 #include "ns3/core-module.h"
 #include "ns3/type-id.h"
-#include "RoadEvents.h"
 #include "ns3/mobility-model.h"
 #include "project-group.h"
 
@@ -122,47 +122,141 @@ void AggregateApplication::PollForEvents()
 {
 
     auto position = GetNode()->GetObject<MobilityModel>()->GetPosition();
-    RoadEvent *event = RoadEventManger::getNearestEvent((int)position.x, (int)position.y, 100);
+    std::vector<RoadEvent *> events =  RoadEventManger::getReachableEvents((int)position.x, (int)position.y, 100);
 
-    if (event != nullptr)
+    if (!events.empty())
     {
         // Create a packet
-        Ptr<Packet> p = Create<Packet>();
-        AggregateEventHeader header;
-        header.SetData(event->x, event->y, event->val, 1);
-        p->AddHeader(header);
-
-        AggregateSignatureTrailer trailer;
-        trailer.SetSignature(GetNode()->GetId());
-        p->AddTrailer(trailer);
-
-        // Create a socket that will send the packet
-        TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
-        Ptr<Socket> socket = Socket::CreateSocket(GetNode(), tid);
-
-        // Get a list of cars in the group from the BSM application
-        int groupId = Group::GetGroup(position.x, position.y);
-
-        // TODO: stop using the direct access to m_reachableNodes and find other methods
-        for (auto const &x : m_bsmApplication->m_reachableNodes)
+        for (RoadEvent * const &event : events)
         {
-            if (x.second->groupId == groupId)
-            {
-                InetSocketAddress remote = InetSocketAddress(getNodeAddress(x.first), m_eventPort);
-                socket->Connect(remote);
-                socket->Send(p);
-            }
-        }
+            Ptr<Packet> p = Create<Packet>();
+            AggregateEventHeader header;
+            header.SetData(event->x, event->y, event->val, 1);
+            p->AddHeader(header);
 
+            // TODO: find out if this creates some sort of memory leak
+            AggregateSignatureTrailer trailer;
+            trailer.SetSignature(GetNode()->GetId());
+            p->AddTrailer(trailer);
+
+            bool sent = SendToNearbyNodes(p);
+            if (sent)
+                m_recentEvents.push_back(event);
+        }
     }
     Simulator::Schedule(MilliSeconds(1000 + m_unirv->GetInteger(0,10.0f)), &AggregateApplication::PollForEvents, this);
 }
 
 void AggregateApplication::ReceiveEventPacket(Ptr<Socket> socket)
 {
-    int self = GetNode()->GetId();
-    int other = socket->GetNode()->GetId();
-    std::cout<< self << " Received message from " << other << std::endl;
+    auto position = GetNode()->GetObject<MobilityModel>()->GetPosition();
+    Address address;
+    Ptr<Packet> p = socket->RecvFrom(address);
+    Ptr<Packet> copy = p->Copy();
+
+    AggregateEventHeader header;
+    p->RemoveHeader(header);
+
+    // Check if data information is already in your memory:
+    bool found = false;
+    for (auto const &x : m_recentEvents)
+    {
+        if (x->x == header.GetX() && x->y == header.GetY())
+        {
+            found = true;
+            break;
+        }
+    }
+
+    if (found)
+        return;
+
+    // Just return if event cannot be validated
+    RoadEvent *event = nullptr;
+    if (header.GetSignatureCount() < 4)
+    {
+        //TODO: turn the threshold into a configurable number
+        vector<RoadEvent *> events = RoadEventManger::getReachableEvents((int)position.x,(int) position.y, 100);
+        for (RoadEvent * const &x : events)
+        {
+            if (x->x == header.GetX() && x->y == header.GetY() && x->val == header.GetVal())
+            {
+                event = x;
+                break;
+            }
+        }
+
+        if (!event)
+            return;
+    }
+
+    // If the event can be validated then
+    // verify the signatures cryptographically but this has not been implemented
+    // therefore we are just making sure we aren't signing a packet twice
+    bool valid = true;
+    AggregateSignatureTrailer trailer;
+    for (int i =0; i < header.GetSignatureCount(); i++)
+    {
+        p->RemoveTrailer(trailer);
+        // obviously fake validation
+        if (trailer.GetSignature() == GetNode()->GetId())
+        {
+            valid = false;
+            break;
+        }
+    }
+    if (!valid)
+        return;
+
+    // If the packet needs more validations then
+    // Append your own signature and redistribute the packet
+    if (header.GetSignatureCount() < 3)
+    {
+        AggregateEventHeader header;
+        copy->RemoveHeader(header);
+        header.IncrementSignatureCount();
+        copy->AddHeader(header);
+
+        AggregateSignatureTrailer trailer;
+        trailer.SetSignature(GetNode()->GetId());
+        copy->AddTrailer(trailer);
+
+    }
+    bool sent = SendToNearbyNodes(copy);
+    if (sent)
+        m_recentEvents.push_back(event);
+}
+
+/**
+ * Function to send a packet to nodes in the same group
+ * @param p Packet to send
+ * @return whether anything was sent or not
+ */
+bool AggregateApplication::SendToNearbyNodes(Ptr<Packet> p)
+{
+    // Create a socket that will send the packet
+    bool sent = false;
+    auto position = GetNode()->GetObject<MobilityModel>()->GetPosition();
+
+    TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
+    Ptr<Socket> socket = Socket::CreateSocket(GetNode(), tid);
+
+    // Get a list of cars in the group from the BSM application
+    int groupId = Group::GetGroup(position.x, position.y);
+
+    // TODO: stop using the direct access to m_reachableNodes and find other methods
+    for (auto const &x : m_bsmApplication->m_reachableNodes)
+    {
+        if (x.second->groupId == groupId)
+        {
+            InetSocketAddress remote = InetSocketAddress(getNodeAddress(x.first), m_eventPort);
+            socket->Connect(remote);
+            socket->Send(p);
+            if (!sent)
+                sent = true;
+        }
+    }
+    return sent;
 }
 
 void AggregateApplication::StopApplication()

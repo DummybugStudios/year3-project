@@ -30,6 +30,7 @@ class RoadEventManger
     static RoadEvent * getNearestEvent(int x, int y, int threshold);
     static void debugPrintEvents();
     static vector<RoadEvent> & getEvents(){return events;};
+    static vector<RoadEvent *> getReachableEvents(int x, int y, int threshold);
 
     private: 
     // maybe it shouldn't be a vector but we will see

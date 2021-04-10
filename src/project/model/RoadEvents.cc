@@ -63,3 +63,17 @@ void RoadEventManger::debugPrintEvents()
     }
 
 }
+
+vector<RoadEvent *> RoadEventManger::getReachableEvents(int x, int y, int threshold) {
+
+    vector<RoadEvent *> retval;
+    for (RoadEvent& event : events)
+    {
+        // strange way to check if number lies in the bounds of two other numbers
+        if ((unsigned int) (x - event.x )< (unsigned int)threshold && (unsigned int)(y - event.y)< (unsigned int)threshold)
+        {
+            retval.push_back(&event);
+        }
+    }
+    return retval;
+}
