@@ -1,5 +1,6 @@
 #include <iostream>
 #include <vector>
+#include <string>  // DEBUG
 #include "AggregateApplication.h"
 
 #include "ns3/core-module.h"
@@ -139,6 +140,8 @@ void AggregateApplication::PollForEvents()
             trailer.SetSignature(GetNode()->GetId());
             p->AddTrailer(trailer);
 
+            std::cout << GetNode()->GetId() <<": (" << event->x << ", " << event->y<< "):" << event->val << std::endl;
+
             bool sent = SendToNearbyNodes(p);
             if (sent)
                 m_recentEvents.push_back(event);
@@ -158,7 +161,9 @@ void AggregateApplication::ReceiveEventPacket(Ptr<Socket> socket)
     p->RemoveHeader(header);
 
     // Check if data information is already in your memory:
-    bool found = false;
+    std::cout << GetNode()->GetId() << ": ";
+    std::cout << "(" << header.GetX() <<", " << header.GetY() <<") : "<<header.GetVal() << "(" << header.GetSignatureCount() << ") ";
+              bool found = false;
     for (auto const &x : m_recentEvents)
     {
         if (x->x == header.GetX() && x->y == header.GetY())
@@ -168,8 +173,10 @@ void AggregateApplication::ReceiveEventPacket(Ptr<Socket> socket)
         }
     }
 
-    if (found)
+    if (found) {
+        std::cout << "ALREADY STORED\n" ;
         return;
+    }
 
     // Just return if event cannot be validated
     RoadEvent *event = nullptr;
@@ -187,7 +194,10 @@ void AggregateApplication::ReceiveEventPacket(Ptr<Socket> socket)
         }
 
         if (!event)
+        {
+            std::cout << "NOT VALIDATED\n";
             return;
+        }
     }
 
     // If the event can be validated then
@@ -204,12 +214,17 @@ void AggregateApplication::ReceiveEventPacket(Ptr<Socket> socket)
             valid = false;
             break;
         }
+
     }
     if (!valid)
+    {
+        std::cout << "ALREADY SIGNED \n";
         return;
+    }
 
     // If the packet needs more validations then
     // Append your own signature and redistribute the packet
+    std::cout << "ACCEPTED: ";
     if (header.GetSignatureCount() < 3)
     {
         AggregateEventHeader header;
@@ -220,11 +235,18 @@ void AggregateApplication::ReceiveEventPacket(Ptr<Socket> socket)
         AggregateSignatureTrailer trailer;
         trailer.SetSignature(GetNode()->GetId());
         copy->AddTrailer(trailer);
-
+        std::cout << "ADDED OWN TRAILER ";
     }
     bool sent = SendToNearbyNodes(copy);
     if (sent)
+    {
+        std::cout << "SENT PACKET\n";
         m_recentEvents.push_back(event);
+    }
+    else
+    {
+        std::cout << "BUT NO CAR IN SAME GROUP FOUND\n";
+    }
 }
 
 /**
@@ -245,9 +267,43 @@ bool AggregateApplication::SendToNearbyNodes(Ptr<Packet> p)
     int groupId = Group::GetGroup(position.x, position.y);
 
     // TODO: stop using the direct access to m_reachableNodes and find other methods
+    std::string debugMessage;
     for (auto const &x : m_bsmApplication->m_reachableNodes)
     {
+        debugMessage += std::to_string(GetNode()->GetId());
+        debugMessage += std::string(": sending it to: ");
         if (x.second->groupId == groupId)
+        {
+            InetSocketAddress remote = InetSocketAddress(getNodeAddress(x.first), m_eventPort);
+            socket->Connect(remote);
+            socket->Send(p);
+            if (!sent)
+                sent = true;
+            debugMessage += std::to_string(x.first->GetId());
+            debugMessage += std::string(" ");
+        }
+    }
+    if (sent)
+    {
+        std::cout << debugMessage << std::endl;
+    }
+    return sent;
+}
+
+bool AggregateApplication::SendToOtherGroups(Ptr <Packet> p) {
+    bool sent = false;
+    auto position = GetNode()->GetObject<MobilityModel>()->GetPosition();
+
+    TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
+    Ptr<Socket> socket = Socket::CreateSocket(GetNode(), tid);
+
+    // Get a list of cars in the group from the BSM application
+    int groupId = Group::GetGroup(position.x, position.y);
+
+    // TODO: stop using the direct access to m_reachableNodes and find other methods
+    for (auto const &x : m_bsmApplication->m_reachableNodes)
+    {
+        if (x.second->groupId != groupId && x.second->groupId != -1)
         {
             InetSocketAddress remote = InetSocketAddress(getNodeAddress(x.first), m_eventPort);
             socket->Connect(remote);
@@ -262,3 +318,4 @@ bool AggregateApplication::SendToNearbyNodes(Ptr<Packet> p)
 void AggregateApplication::StopApplication()
 {
 }
+

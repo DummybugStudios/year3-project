@@ -101,6 +101,7 @@ class AggregateApplication : public Application
     void PollForEvents();
     void ReceiveEventPacket(Ptr<Socket> socket);
     bool SendToNearbyNodes(Ptr<Packet> p);
+    bool SendToOtherGroups(Ptr<Packet> p);
     bool isEvil;
     Ptr<UniformRandomVariable> m_unirv;
     int m_eventPort = 1080;    ///< Port for event communication
