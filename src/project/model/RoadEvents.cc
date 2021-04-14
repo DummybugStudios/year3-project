@@ -1,9 +1,8 @@
 #include <iostream> 
-#include <cstdlib>
-#include <ctime> 
 #include "RoadEvents.h"
+#include <ns3/random-variable-stream.h>
 
-using namespace std; 
+using namespace ns3;
 
 bool RoadEventManger::initialized(false);
 
@@ -14,14 +13,17 @@ void RoadEventManger::setupEvents(int n, int xmax, int ymax)
     // only initialze once 
     if (initialized) return; 
 
+
     // TODO: let's do this somewehre else in the future yeah? 
-    srand(time(0));
+
+    Ptr<UniformRandomVariable> m_univr = CreateObject<UniformRandomVariable>();
 
     for (int i =0; i < n; i++)
     { 
-        int x = rand() % xmax;
-        int y = rand() % ymax;
-        int val = rand() % (n*2); 
+
+        int x = m_univr->GetInteger(0, xmax);
+        int y = m_univr->GetInteger(0, ymax);
+        int val = m_univr->GetInteger(0,n*2);
 
         events.push_back(RoadEvent(x, y, val));
         
@@ -51,15 +53,15 @@ void RoadEventManger::debugPrintEvents()
 {
     if (!initialized)
     {
-        cout << "Events not initalized yet" << endl;
+        std::cout << "Events not initalized yet" << endl;
         return; 
     }
 
-    cout << "Events initialized" << endl;
+    std::cout << "Events initialized" << endl;
 
     for (auto const &it : events)
     {
-        cout << it << endl;
+        std::cout << it << endl;
     }
 
 }
