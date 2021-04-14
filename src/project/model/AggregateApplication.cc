@@ -140,7 +140,7 @@ void AggregateApplication::PollForEvents()
             trailer.SetSignature(GetNode()->GetId());
             p->AddTrailer(trailer);
 
-            std::cout << GetNode()->GetId() <<": (" << event->x << ", " << event->y<< "):" << event->val << std::endl;
+            std::cout << Simulator::Now().GetMilliSeconds()/1000.0f<<"s "<<GetNode()->GetId() <<": (" << event->x << ", " << event->y<< "):" << event->val << std::endl;
 
             bool sent = SendToNearbyNodes(p);
             if (sent)
@@ -161,7 +161,7 @@ void AggregateApplication::ReceiveEventPacket(Ptr<Socket> socket)
     p->RemoveHeader(header);
 
     // Check if data information is already in your memory:
-    std::cout << GetNode()->GetId() << ": ";
+    std::cout << Simulator::Now().GetMilliSeconds()/1000.0f<<"s "<<GetNode()->GetId() << ": ";
     std::cout << "(" << header.GetX() <<", " << header.GetY() <<") : "<<header.GetVal() << "(" << header.GetSignatureCount() << ") ";
               bool found = false;
     for (auto const &x : m_recentEvents)
