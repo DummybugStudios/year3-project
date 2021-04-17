@@ -903,6 +903,13 @@ protected:
    */
   virtual void ConfigureTracing ();
 
+
+  /**
+   * \brief Configure Animation Interface
+   * \return none
+   */
+  virtual void ConfigureAnimation();
+
   /**
    * \brief Run the simulation
    * \return none
@@ -914,6 +921,10 @@ protected:
    * \return none
    */
   virtual void ProcessOutputs ();
+
+  // Because of the stupid way this is all laid out
+  // m_anim will be set in Simulate and accessed later in ConfigureAnimation by VanetRoutingExperiment
+  AnimationInterface *m_anim;
 };
 
 WifiApp::WifiApp ()
@@ -955,6 +966,8 @@ WifiApp::Simulate (int argc, char **argv)
   ConfigureTracing ();
   // TODO: put in a function or remove entirely
   AnimationInterface anim(std::string("vanet-routing-compare-animation.xml"));
+  m_anim = &anim;
+  ConfigureAnimation();
   RunSimulation ();
   ProcessOutputs ();
 }
@@ -996,6 +1009,11 @@ WifiApp::ConfigureApplications ()
 
 void
 WifiApp::ConfigureTracing ()
+{
+}
+
+void
+WifiApp::ConfigureAnimation()
 {
 }
 
@@ -1133,6 +1151,12 @@ protected:
    * \return none
    */
   virtual void ConfigureTracing ();
+
+  /**
+   * \brief Configure Animation Interface
+   * \return none
+   */
+  virtual void ConfigureAnimation ();
 
   /**
    * \brief Run the simulation
@@ -1703,6 +1727,17 @@ VanetRoutingExperiment::ConfigureTracing ()
 
   AsciiTraceHelper ascii;
   MobilityHelper::EnableAsciiAll (ascii.CreateFileStream (m_trName + ".mob"));
+}
+
+void
+VanetRoutingExperiment::ConfigureAnimation ()
+{
+    // Make the RSU nodes bigger
+    int size = m_rsuNodes.GetN();
+    for (int i =0; i < size; i++)
+    {
+        m_anim->UpdateNodeSize(m_rsuNodes.Get(i)->GetId(), 20,20);
+    }
 }
 
 void
@@ -2435,7 +2470,6 @@ VanetRoutingExperiment::SetupRoutingMessages ()
     // Get the new base by zeroing out the host bits and adding one to avoid collisions
     Ipv4Address newbase((addr.Get() & 0x0000FFFF) + 1);
 
-    std::cout << newbase << std::endl;
     m_routingHelper->Install(m_rsuNodes,
                              m_rsuDevices,
                              m_rsuInterfaces,
