@@ -2,6 +2,7 @@
 
 #include "ns3/VanetApplication.h"
 #include "ns3/AggregateApplication.h"
+#include "ns3/TRIPApplication.h"
 #include "VanetApplicationHeper.h"
 #include <iostream>
 
@@ -17,6 +18,9 @@ VanetApplicationHelper::VanetApplicationHelper(bool isEvil, int algo)
             break;
         case 1:
             m_factory.SetTypeId(AggregateApplication::GetTypeId());
+            break;
+        case 2:
+            m_factory.SetTypeId(TRIPApplication::GetTypeId());
             break;
     }
     m_factory.Set("Evil", BooleanValue(isEvil));
@@ -51,7 +55,9 @@ Ptr<Application> VanetApplicationHelper::InstallPriv(Ptr<Node> node) const
         case 1:
             app = m_factory.Create<AggregateApplication>();
             break;
-
+        case 2:
+            app = m_factory.Create<TRIPApplication>();
+            break;
     }
     node->AddApplication(app) ; 
     return app; 
