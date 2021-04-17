@@ -417,13 +417,8 @@ public:
    * \param routingTables dump routing tables at t=5 seconds (0=no;1=yes)
    * \return none
    */
-  void Install (NodeContainer & c,
-                NetDeviceContainer & d,
-                Ipv4InterfaceContainer & i,
-                double totalTime,
-                int protocol,
-                uint32_t nSinks,
-                int routingTables);
+  void Install(NodeContainer &c, NetDeviceContainer &d, Ipv4InterfaceContainer &i, double totalTime,
+               int protocol, uint32_t nSinks, int routingTables, Ipv4Address &baseAddr);
 
   /**
    * \brief Trace the receipt of an on-off-application generated packet
@@ -460,8 +455,8 @@ private:
    * \param adhocTxInterfaces IPv4 interface container
    * \return none
    */
-  void AssignIpAddresses (NetDeviceContainer & d,
-                          Ipv4InterfaceContainer & adhocTxInterfaces);
+  void AssignIpAddresses(NetDeviceContainer &d, Ipv4InterfaceContainer &adhocTxInterfaces,
+                         Ipv4Address &baseAddr);
 
   /**
    * \brief Sets up routing messages on the nodes and their interfaces
@@ -523,13 +518,8 @@ RoutingHelper::~RoutingHelper ()
 }
 
 void
-RoutingHelper::Install (NodeContainer & c,
-                        NetDeviceContainer & d,
-                        Ipv4InterfaceContainer & i,
-                        double totalTime,
-                        int protocol,
-                        uint32_t nSinks,
-                        int routingTables)
+RoutingHelper::Install(NodeContainer &c, NetDeviceContainer &d, Ipv4InterfaceContainer &i, double totalTime,
+                       int protocol, uint32_t nSinks, int routingTables, Ipv4Address &baseAddr)
 {
   m_TotalSimTime = totalTime;
   m_protocol = protocol;
@@ -537,7 +527,7 @@ RoutingHelper::Install (NodeContainer & c,
   m_routingTables = routingTables;
 
   SetupRoutingProtocol (c);
-  AssignIpAddresses (d, i);
+  AssignIpAddresses(d, i, baseAddr);
   // SetupRoutingMessages (c, i);
 }
 
@@ -624,14 +614,14 @@ RoutingHelper::SetupRoutingProtocol (NodeContainer & c)
 }
 
 void
-RoutingHelper::AssignIpAddresses (NetDeviceContainer & d,
-                                  Ipv4InterfaceContainer & adhocTxInterfaces)
+RoutingHelper::AssignIpAddresses(NetDeviceContainer &d, Ipv4InterfaceContainer &adhocTxInterfaces,
+                                 Ipv4Address &baseAddr)
 {
   NS_LOG_INFO ("Assigning IP addresses");
   Ipv4AddressHelper addressAdhoc;
   // we may have a lot of nodes, and want them all
   // in same subnet, to support broadcast
-  addressAdhoc.SetBase ("10.1.0.0", "255.255.0.0");
+  addressAdhoc.SetBase ("10.1.0.0", "255.255.0.0", baseAddr);
   adhocTxInterfaces = addressAdhoc.Assign (d);
 }
 
@@ -1288,8 +1278,8 @@ private:
   double m_waveInterval; ///< seconds
   int m_verbose; ///< verbose
   std::ofstream m_os; ///< output stream
-  NetDeviceContainer m_adhocTxDevices; ///< adhoc transmit devices
-  Ipv4InterfaceContainer m_adhocTxInterfaces; ///< adhoc transmit interfaces
+  NetDeviceContainer m_adhocTxDevices, m_rsuDevices; ///< adhoc transmit devices
+  Ipv4InterfaceContainer m_adhocTxInterfaces, m_rsuInterfaces; ///< adhoc transmit interfaces
   uint32_t m_scenario; ///< scenario
   double m_gpsAccuracyNs; ///< GPS accuracy
   double m_txMaxDelayMs; ///< transmit maximum delay
@@ -1306,6 +1296,7 @@ private:
   /// used to get consistent random numbers across scenarios
   int64_t m_streamIndex;
   NodeContainer m_adhocTxNodes; ///< adhoc transmit nodes
+  NodeContainer m_rsuNodes;///< RSU nodes
   double m_txSafetyRange1; ///< range 1
   double m_txSafetyRange2; ///< range 2
   double m_txSafetyRange3; ///< range 3
@@ -1612,7 +1603,8 @@ void
 VanetRoutingExperiment::ConfigureNodes ()
 {
   m_adhocTxNodes.Create (m_nNodes);
-  
+  // have 10% of the nodes be RSU nodes;
+  m_rsuNodes.Create(m_nNodes * 0.1);
 }
 
 void
@@ -1642,6 +1634,16 @@ void
 VanetRoutingExperiment::ConfigureMobility ()
 {
   SetupAdhocMobilityNodes ();
+  // Mobility for the static RSU nodes
+  MobilityHelper mobilityRSU;
+  std::stringstream ssSize;
+  ssSize << "ns3::UniformRandomVariable[Min=0.0|Max="<< m_worldWidth << "]";
+  mobilityRSU.SetPositionAllocator("ns3::RandomBoxPositionAllocator",
+                                   "X", StringValue(ssSize.str()),
+                                   "Y", StringValue(ssSize.str()),
+                                   "Z", StringValue("ns3::UniformRandomVariable[Min=1.0|Max=2.0]"));
+  mobilityRSU.SetMobilityModel("ns3::ConstantPositionMobilityModel");
+  mobilityRSU.Install(m_rsuNodes);
 }
 
 void
@@ -2207,8 +2209,10 @@ VanetRoutingExperiment::SetupAdhocMobilityNodes ()
 
       ObjectFactory pos;
       pos.SetTypeId ("ns3::RandomBoxPositionAllocator");
-      pos.Set ("X", StringValue ("ns3::UniformRandomVariable[Min=0.0|Max=1200.0]"));
-      pos.Set ("Y", StringValue ("ns3::UniformRandomVariable[Min=0.0|Max=1200.0]"));
+      std::stringstream ssSize;
+      ssSize << "ns3::UniformRandomVariable[Min=0.0|Max="<< m_worldWidth << "]";
+      pos.Set("X", StringValue(ssSize.str()));
+      pos.Set("Y", StringValue(ssSize.str()));
       // we need antenna height uniform [1.0 .. 2.0] for loss model
       pos.Set ("Z", StringValue ("ns3::UniformRandomVariable[Min=1.0|Max=2.0]"));
 
@@ -2339,6 +2343,7 @@ VanetRoutingExperiment::SetupAdhocDevices ()
                                       "DataMode",StringValue (m_phyMode),
                                       "ControlMode",StringValue (m_phyMode));
 
+  //TODO: create a copy of wifi and wave Phy for rsu devices
   // Set Tx Power
   wifiPhy.Set ("TxPowerStart",DoubleValue (m_txp));
   wifiPhy.Set ("TxPowerEnd", DoubleValue (m_txp));
@@ -2355,14 +2360,17 @@ VanetRoutingExperiment::SetupAdhocDevices ()
   if (m_80211mode == 3)
     {
       m_adhocTxDevices = waveHelper.Install (wavePhy, waveMac, m_adhocTxNodes);
+      m_rsuDevices = waveHelper.Install(wavePhy, waveMac, m_rsuNodes);
     }
   else if (m_80211mode == 1)
     {
       m_adhocTxDevices = wifi80211p.Install (wifiPhy, wifi80211pMac, m_adhocTxNodes);
+      m_rsuDevices = wifi80211p.Install(wifiPhy, wifi80211pMac, m_rsuNodes);
     }
   else
     {
       m_adhocTxDevices = wifi.Install (wifiPhy, wifiMac, m_adhocTxNodes);
+      m_rsuDevices = wifi.Install(wifiPhy, wifiMac, m_rsuNodes);
     }
 
   if (m_asciiTrace != 0)
@@ -2408,13 +2416,33 @@ VanetRoutingExperiment::SetupWaveMessages ()
 void
 VanetRoutingExperiment::SetupRoutingMessages ()
 {
-  m_routingHelper->Install (m_adhocTxNodes,
-                            m_adhocTxDevices,
-                            m_adhocTxInterfaces,
-                            m_TotalSimTime,
-                            m_protocol,
-                            m_nSinks,
-                            m_routingTables);
+    //TODO: Is there a way to make the base address default to 0.0.0.1?
+    Ipv4Address base = Ipv4Address("0.0.0.1");
+    m_routingHelper->Install(m_adhocTxNodes,
+                             m_adhocTxDevices,
+                             m_adhocTxInterfaces,
+                             m_TotalSimTime,
+                             m_protocol,
+                             m_nSinks,
+                             m_routingTables, base);
+
+
+    // Find the address of the last adhoc interface
+    Ipv4Address addr = m_adhocTxInterfaces.GetAddress(m_adhocTxInterfaces.GetN()-1);
+
+    // It is nice to have the RSU nodes in the same subnet as the adhoc nodes
+    // So the base address needs to be the same
+    // Get the new base by zeroing out the host bits and adding one to avoid collisions
+    Ipv4Address newbase((addr.Get() & 0x0000FFFF) + 1);
+
+    std::cout << newbase << std::endl;
+    m_routingHelper->Install(m_rsuNodes,
+                             m_rsuDevices,
+                             m_rsuInterfaces,
+                             m_TotalSimTime,
+                             m_protocol,
+                             m_nSinks,
+                             m_routingTables, newbase);
 }
 
 void
@@ -2511,12 +2539,9 @@ VanetRoutingExperiment::WriteCsvHeader ()
 int
 main (int argc, char *argv[])
 {
-
-  RoadEventManger::debugPrintEvents();
   // keep road incident density the same
   // 10 / 300m^2  == 1777 / 4000m^2 
   RoadEventManger::setupEvents(160,1200,1200);
-  RoadEventManger::debugPrintEvents();
   LogComponentEnable("VanetApplication", LOG_INFO);
   // LogComponentEnable("ProjectBsmApplication", LOG_ALL);
   VanetRoutingExperiment experiment;
