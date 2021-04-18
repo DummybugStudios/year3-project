@@ -1337,6 +1337,7 @@ private:
   int m_cumulativeBsmCaptureStart; ///< capture start
   int m_worldWidth; // Also the world height since I'll just keep it square innit
   int m_cellSize;
+  int m_threshold; ///< Distance before an event becomes undetectable
 };
 
 VanetRoutingExperiment::VanetRoutingExperiment ()
@@ -1394,7 +1395,8 @@ VanetRoutingExperiment::VanetRoutingExperiment ()
     m_txSafetyRanges (),
     m_exp (""),
     m_cumulativeBsmCaptureStart (0),
-    m_worldWidth(1200) // You don't need this but I'm just cargo cult programming
+    m_worldWidth(1200), // You don't need this but I'm just cargo cult programming
+    m_threshold(50)
 {
   m_wifiPhyStats = CreateObject<WifiPhyStats> ();
   m_routingHelper = CreateObject<RoutingHelper> ();
@@ -1588,6 +1590,10 @@ static ns3::GlobalValue g_worldWidth  ("VRCworldWidth",
 static ns3::GlobalValue g_cellSize ("VRCcellSize",
                                     "Cell size that determines group",
                                     ns3::IntegerValue(300),
+                                    ns3::MakeIntegerChecker<int>());
+static ns3::GlobalValue g_threshold("VRCthreshold",
+                                    "Distance before event becomes undetectable",
+                                    ns3::IntegerValue(50),
                                     ns3::MakeIntegerChecker<int>());
 
 void
@@ -2062,6 +2068,8 @@ VanetRoutingExperiment::SetConfigFromGlobals ()
   m_worldWidth = integerValue.Get();
   GlobalValue::GetValueByName("VRCcellSize", integerValue);
   m_cellSize = integerValue.Get();
+  GlobalValue::GetValueByName("VRCthreshold", integerValue);
+  m_threshold = integerValue.Get();
 }
 
 void
@@ -2119,6 +2127,7 @@ VanetRoutingExperiment::SetGlobalsFromConfig ()
   m_trName = stringValue.Get ();
   g_worldWidth.SetValue(IntegerValue(m_worldWidth));
   g_cellSize.SetValue(IntegerValue(m_cellSize));
+  g_threshold.SetValue(IntegerValue(m_threshold));
 }
 
 void
@@ -2183,6 +2192,7 @@ VanetRoutingExperiment::CommandSetup (int argc, char **argv)
   cmd.AddValue ("saveconfig", "Config-store filename to save", m_saveConfigFilename);
   cmd.AddValue ("exp", "Experiment", m_exp);
   cmd.AddValue ("BsmCaptureStart", "Start time to begin capturing pkts for cumulative Bsm", m_cumulativeBsmCaptureStart);
+  cmd.AddValue("threshold", "Distance before event becomes undetectable", m_threshold);
   cmd.Parse (argc, argv);
 
   m_txSafetyRange1 = txDist1;

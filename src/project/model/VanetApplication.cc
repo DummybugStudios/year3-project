@@ -4,6 +4,7 @@
 #include "ns3/core-module.h"
 #include "ns3/type-id.h"
 #include "ns3/mobility-model.h"
+#include "ns3/global-value.h"
 
 #include "ns3/simulator.h"
 
@@ -112,8 +113,10 @@ void VanetApplication::StartLoop()
     Simulator::Schedule (Seconds(1),&VanetApplication::StartLoop, this);
 
     auto position  = GetNode()->GetObject<MobilityModel>()->GetPosition();
-    // TODO: make the functions able to handle a double
-    RoadEvent *event = RoadEventManger::getNearestEvent((int)position.x, (int)position.y, 20);
+
+    IntegerValue threshold;
+    GlobalValue::GetValueByName("VRCthreshold", threshold);
+    RoadEvent *event = RoadEventManger::getNearestEvent((int)position.x, (int)position.y, threshold.Get());
     if (event != nullptr)
     {
         if (!m_socket)

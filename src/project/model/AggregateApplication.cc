@@ -7,6 +7,7 @@
 #include "ns3/type-id.h"
 #include "ns3/mobility-model.h"
 #include "project-group.h"
+#include "ns3/global-value.h"
 
 using namespace ns3;
 
@@ -123,7 +124,9 @@ void AggregateApplication::PollForEvents()
 {
 
     auto position = GetNode()->GetObject<MobilityModel>()->GetPosition();
-    std::vector<RoadEvent *> events =  RoadEventManger::getReachableEvents((int)position.x, (int)position.y, 100);
+    IntegerValue threshold;
+    GlobalValue::GetValueByName("VRCthreshold", threshold);
+    std::vector<RoadEvent *> events =  RoadEventManger::getReachableEvents((int)position.x, (int)position.y, threshold.Get());
 
     if (!events.empty())
     {
@@ -182,8 +185,9 @@ void AggregateApplication::ReceiveEventPacket(Ptr<Socket> socket)
     RoadEvent *event = nullptr;
     if (header.GetSignatureCount() < 4)
     {
-        //TODO: turn the threshold into a configurable number
-        vector<RoadEvent *> events = RoadEventManger::getReachableEvents((int)position.x,(int) position.y, 100);
+        IntegerValue threshold;
+        GlobalValue::GetValueByName("VRCthreshold", threshold);
+        vector<RoadEvent *> events = RoadEventManger::getReachableEvents((int)position.x,(int) position.y, threshold.Get());
         for (RoadEvent * const &x : events)
         {
             if (x->x == header.GetX() && x->y == header.GetY() && x->val == header.GetVal())
