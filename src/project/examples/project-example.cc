@@ -1321,6 +1321,7 @@ private:
   int64_t m_streamIndex;
   NodeContainer m_adhocTxNodes; ///< adhoc transmit nodes
   NodeContainer m_rsuNodes;///< RSU nodes
+  NodeContainer m_eventNodes; ///< These don't do anything these are just for animation purposes
   double m_txSafetyRange1; ///< range 1
   double m_txSafetyRange2; ///< range 2
   double m_txSafetyRange3; ///< range 3
@@ -1629,6 +1630,18 @@ VanetRoutingExperiment::ConfigureNodes ()
   m_adhocTxNodes.Create (m_nNodes);
   // have 10% of the nodes be RSU nodes;
   m_rsuNodes.Create(m_nNodes * 0.1);
+
+  // Initialise the event nodes for the animation manager
+  std::vector<RoadEvent> &events = RoadEventManger::getEvents();
+  int size = events.size();
+  m_eventNodes.Create(size);
+  // Give the event nodes a constant position
+  // Doing it here instead of Configure Mobility just because it is easier
+  for (int i =0; i < size; i++)
+  {
+      RoadEvent &event = events[i];
+      AnimationInterface::SetConstantPosition(m_eventNodes.Get(i), (double)event.x, (double)event.y);
+  }
 }
 
 void
@@ -1738,6 +1751,15 @@ VanetRoutingExperiment::ConfigureAnimation ()
     {
         m_anim->UpdateNodeSize(m_rsuNodes.Get(i)->GetId(), 20,20);
     }
+
+    // change Event colour and size to be more visible
+    for (int i = 0; i < (int)m_eventNodes.GetN(); i++)
+    {
+        uint32_t nodeid = m_eventNodes.Get(i)->GetId();
+        m_anim->UpdateNodeSize(nodeid, 20,20);
+        m_anim->UpdateNodeColor(nodeid, 0.0f,0.0f,1.0f);
+    }
+
 }
 
 void
