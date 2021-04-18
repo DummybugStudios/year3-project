@@ -6,6 +6,7 @@
 #define NS_3_32_TRIPAPPLICATION_H
 #include "ns3/application.h"
 #include "ns3/core-module.h"
+#include "ns3/socket.h"
 
 
 using namespace ns3;
@@ -19,7 +20,12 @@ public:
 private:
     virtual void StartApplication();
     virtual void StopApplication();
+    void PollForEvents();
+    void ReceiveEventPacket(Ptr<Socket> socket);
     bool isEvil;
+    int m_eventPort = 1080; ///< Port for communication about events
+    Ptr<Socket> m_eventSocket;
+    Ptr<UniformRandomVariable> m_unirv;
 };
 
 
