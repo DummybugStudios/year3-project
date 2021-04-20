@@ -11,6 +11,39 @@
 #include <iostream>
 
 using namespace ns3;
+TypeId ReputationHeader::GetTypeId()
+{
+    static TypeId tid = TypeId("ReputationHeader")
+    .SetParent<Header>()
+    .AddConstructor<ReputationHeader>();
+
+    return tid;
+}
+
+uint32_t ReputationHeader::GetSerializedSize() const {
+    return sizeof(m_address)+sizeof(m_reputationValue)+sizeof(m_isRequest);
+}
+
+uint32_t ReputationHeader::Deserialize(Buffer::Iterator start) {
+    // need to reinterpret uint64_t as double before it can be used
+    uint64_t x = start.ReadNtohU64();
+    double *y = (double *)(&x);
+    m_reputationValue = *y;
+
+    m_address = start.ReadNtohU32();
+    m_isRequest = start.ReadU8();
+    return GetSerializedSize();
+}
+
+void ReputationHeader::Serialize(Buffer::Iterator start) const {
+    // Cannot directly write a double so have to reinterpret it as to uint64_t
+    const uint64_t *x  = (uint64_t *)&m_reputationValue;
+    start.WriteHtonU64(*x);
+    start.WriteHtonU32(m_address);
+
+    start.WriteU8(m_isRequest);
+}
+
 TypeId TRIPApplication::GetTypeId() {
     static TypeId tid = TypeId("TRIPApplication")
     .SetParent<Application>()
@@ -42,6 +75,12 @@ void TRIPApplication::StartApplication() {
     m_eventSocket->SetRecvCallback(MakeCallback(&TRIPApplication::ReceiveEventPacket, this));
     InetSocketAddress local = InetSocketAddress(Ipv4Address::GetAny(), m_eventPort);
     m_eventSocket->Bind(local);
+
+    // Bind the reputation socket to 0.0.0.0:m_reputationPort
+    m_reputationSocket = Socket::CreateSocket(GetNode(), tid);
+    m_reputationSocket->SetRecvCallback(MakeCallback(&TRIPApplication::ReceiveReputationPacket, this));
+    local = InetSocketAddress(Ipv4Address::GetAny(), m_reputationPort);
+    m_reputationSocket->Bind(local);
 
     // Schedule with some random delay to avoid collisions
     Simulator::Schedule(
@@ -85,5 +124,21 @@ void TRIPApplication::PollForEvents() {
 }
 
 void TRIPApplication::ReceiveEventPacket(Ptr <Socket> socket) {
-    std::cout << "Recieved event\n";
+    // Request reputation from other vehicles
+    ReputationHeader header(true);
+    header.SetData(123, 1.2123131f);
+    Ptr<Packet> p = Create<Packet>();
+    p->AddHeader(header);
+
+    InetSocketAddress remote = InetSocketAddress("255.255.255.255",m_reputationPort);
+    m_reputationSocket->SetAllowBroadcast(true);
+    m_reputationSocket->Connect(remote);
+    m_reputationSocket->Send(p);
+}
+
+void TRIPApplication::ReceiveReputationPacket(Ptr <Socket> socket) {
+    ReputationHeader header;
+    Ptr<Packet> p  = socket->Recv();
+    p->RemoveHeader(header);
+    std::cout << header;
 }
