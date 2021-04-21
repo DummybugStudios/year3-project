@@ -30,8 +30,8 @@ public:
         m_address = address;
         m_reputationValue = reputationValue;
     }
-    bool isRequest() {return m_isRequest;}
-    bool isRSU() {return m_isRSU;}
+    bool IsRequest() {return m_isRequest;}
+    bool IsRSU() {return m_isRSU;}
 
     virtual void Print(std::ostream &os) const
     {
@@ -40,8 +40,8 @@ public:
         m_reputationValue << std::endl;
     }
 
-    double getReputationValue(){return m_reputationValue;}
-    uint32_t getAddress(){return m_address;}
+    double GetReputationValue(){return m_reputationValue;}
+    uint32_t GetAddress(){return m_address;}
 
 
     virtual uint32_t GetSerializedSize() const;
@@ -75,9 +75,9 @@ private:
     Ptr<Socket> m_reputationSocket;
     Ptr<UniformRandomVariable> m_unirv;
     // These three must add up to 1
-    double m_directTrustWeight = 0.3; ///< Weighting of a vehicle's own experience
-    double m_recTrustWeight = 0.4; ///< Weighting of other vehicle's recommendations
-    double m_rsuWeight = 0.3;     ///< Weighting of other vehicle's recommendations
+    constexpr static double m_directTrustWeight = 0.3; ///< Weighting of a vehicle's own experience
+    constexpr static double m_recTrustWeight = 0.4; ///< Weighting of other vehicle's recommendations
+    constexpr static double m_rsuWeight = 0.3;     ///< Weighting of other vehicle's recommendations
 };
 
 
