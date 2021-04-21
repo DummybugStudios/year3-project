@@ -21,7 +21,7 @@ TypeId ReputationHeader::GetTypeId()
 }
 
 uint32_t ReputationHeader::GetSerializedSize() const {
-    return sizeof(m_address)+sizeof(m_reputationValue)+sizeof(m_isRequest);
+    return sizeof(m_address)+sizeof(m_reputationValue)+sizeof(m_isRequest)+sizeof(m_isRSU);
 }
 
 uint32_t ReputationHeader::Deserialize(Buffer::Iterator start) {
@@ -32,6 +32,7 @@ uint32_t ReputationHeader::Deserialize(Buffer::Iterator start) {
 
     m_address = start.ReadNtohU32();
     m_isRequest = start.ReadU8();
+    m_isRSU = start.ReadU8();
     return GetSerializedSize();
 }
 
@@ -42,6 +43,7 @@ void ReputationHeader::Serialize(Buffer::Iterator start) const {
     start.WriteHtonU32(m_address);
 
     start.WriteU8(m_isRequest);
+    start.WriteU8(m_isRSU);
 }
 
 TypeId TRIPApplication::GetTypeId() {

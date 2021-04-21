@@ -18,7 +18,11 @@ class ReputationHeader: public Header
 public:
     static TypeId GetTypeId();
     virtual TypeId GetInstanceTypeId() const {return GetTypeId();}
-    ReputationHeader(bool isRequest = true) : m_isRequest(isRequest)
+    ReputationHeader(bool isRequest = true, bool isRSU = false) :
+    m_reputationValue(0),
+    m_address(0),
+    m_isRequest(isRequest),
+    m_isRSU(isRSU)
     {
     }
     void SetData(uint32_t address, double reputationValue)
@@ -27,6 +31,7 @@ public:
         m_reputationValue = reputationValue;
     }
     bool isRequest() {return m_isRequest;}
+    bool isRSU() {return m_isRSU;}
 
     virtual void Print(std::ostream &os) const
     {
@@ -46,7 +51,9 @@ public:
 private:
     double m_reputationValue;
     uint32_t m_address;
-    uint8_t m_isRequest;
+    // TODO: since they're just bools you can merge them into one flag
+    bool m_isRequest;
+    bool m_isRSU;
 };
 
 class TRIPApplication : public Application{
