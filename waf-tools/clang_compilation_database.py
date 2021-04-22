@@ -1,6 +1,7 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 # encoding: utf-8
 # Christoph Koke, 2013
+# Alibek Omarov, 2019
 
 """
 Writes the c and cpp compile commands into build/compile_commands.json
@@ -8,61 +9,129 @@ see http://clang.llvm.org/docs/JSONCompilationDatabase.html
 
 Usage:
 
-    def configure(conf):
-        conf.load('compiler_cxx')
-        ...
-        conf.load('clang_compilation_database')
+	Load this tool in `options` to be able to generate database
+	by request in command-line and before build:
+
+	$ waf clangdb
+
+	def options(opt):
+		opt.load('clang_compilation_database')
+
+	Otherwise, load only in `configure` to generate it always before build.
+
+	def configure(conf):
+		conf.load('compiler_cxx')
+		...
+		conf.load('clang_compilation_database')
 """
 
-import sys, os, json, shlex, pipes
-from waflib import Logs, TaskGen, Task
-from waflib.Tools import c, cxx
+from waflib import Logs, TaskGen, Task, Build, Scripting
 
-Task.TaskBase.keep_last_cmd = True
+Task.Task.keep_last_cmd = True
 
-if sys.hexversion >= 0x3030000:
-	quote = shlex.quote
-else:
-	quote = pipes.quote
+class ClangDbContext(Build.BuildContext):
+	'''generates compile_commands.json by request'''
+	cmd = 'clangdb'
 
-@TaskGen.feature('*')
-@TaskGen.after_method('process_use')
-def collect_compilation_db_tasks(self):
-	"Add a compilation database entry for compiled tasks"
-	try:
-		clang_db = self.bld.clang_compilation_database_tasks
-	except AttributeError:
-		clang_db = self.bld.clang_compilation_database_tasks = []
-		self.bld.add_post_fun(write_compilation_database)
-
-	for task in getattr(self, 'compiled_tasks', []):
-		if isinstance(task, (c.c, cxx.cxx)):
-			clang_db.append(task)
-
-def write_compilation_database(ctx):
-	"Write the clang compilation database as JSON"
-	database_file = ctx.bldnode.make_node('compile_commands.json')
-	Logs.info("Build commands will be stored in %s" % database_file.path_from(ctx.path))
-	try:
-		root = json.load(database_file)
-	except IOError:
-		root = []
-	clang_db = dict((x["file"], x) for x in root)
-	for task in getattr(ctx, 'clang_compilation_database_tasks', []):
+	def write_compilation_database(self):
+		"""
+		Write the clang compilation database as JSON
+		"""
+		database_file = self.bldnode.make_node('compile_commands.json')
+		Logs.info('Build commands will be stored in %s', database_file.path_from(self.path))
 		try:
-			cmd = task.last_cmd
-		except AttributeError:
-			continue
-		directory = getattr(task, 'cwd', ctx.variant_dir)
-		f_node = task.inputs[0]
-		filename = os.path.relpath(f_node.abspath(), directory)
-		cmd = " ".join(map(quote, cmd))
-		entry = {
-			"directory": directory,
-			"command": cmd,
-			"file": filename,
-		}
-		clang_db[filename] = entry
-	root = list(clang_db.values())
-	database_file.write(json.dumps(root, indent=2))
+			root = database_file.read_json()
+		except IOError:
+			root = []
+		clang_db = dict((x['file'], x) for x in root)
+		for task in self.clang_compilation_database_tasks:
+			try:
+				cmd = task.last_cmd
+			except AttributeError:
+				continue
+			f_node = task.inputs[0]
+			filename = f_node.path_from(task.get_cwd())
+			entry = {
+				"directory": task.get_cwd().abspath(),
+				"arguments": cmd,
+				"file": filename,
+			}
+			clang_db[filename] = entry
+		root = list(clang_db.values())
+		database_file.write_json(root)
 
+	def execute(self):
+		"""
+		Build dry run
+		"""
+		self.restore()
+		self.cur_tasks = []
+		self.clang_compilation_database_tasks = []
+
+		if not self.all_envs:
+			self.load_envs()
+
+		self.recurse([self.run_dir])
+		self.pre_build()
+
+		# we need only to generate last_cmd, so override
+		# exec_command temporarily
+		def exec_command(self, *k, **kw):
+			return 0
+
+		for g in self.groups:
+			for tg in g:
+				try:
+					f = tg.post
+				except AttributeError:
+					pass
+				else:
+					f()
+
+				if isinstance(tg, Task.Task):
+					lst = [tg]
+				else: lst = tg.tasks
+				for tsk in lst:
+					if tsk.__class__.__name__ == "swig":
+						tsk.runnable_status()
+						if hasattr(tsk, 'more_tasks'):
+							lst.extend(tsk.more_tasks)
+					# Not all dynamic tasks can be processed, in some cases
+					# one may have to call the method "run()" like this:
+					#elif tsk.__class__.__name__ == 'src2c':
+					#	tsk.run()
+					#	if hasattr(tsk, 'more_tasks'):
+					#		lst.extend(tsk.more_tasks)
+
+					tup = tuple(y for y in [Task.classes.get(x) for x in ('c', 'cxx')] if y)
+					if isinstance(tsk, tup):
+						self.clang_compilation_database_tasks.append(tsk)
+						tsk.nocache = True
+						old_exec = tsk.exec_command
+						tsk.exec_command = exec_command
+						tsk.run()
+						tsk.exec_command = old_exec
+
+		self.write_compilation_database()
+
+EXECUTE_PATCHED = False
+def patch_execute():
+	global EXECUTE_PATCHED
+
+	if EXECUTE_PATCHED:
+		return
+
+	def new_execute_build(self):
+		"""
+		Invoke clangdb command before build
+		"""
+		if self.cmd.startswith('build'):
+			Scripting.run_command('clangdb')
+
+		old_execute_build(self)
+
+	old_execute_build = getattr(Build.BuildContext, 'execute_build', None)
+	setattr(Build.BuildContext, 'execute_build', new_execute_build)
+	EXECUTE_PATCHED = True
+
+patch_execute()

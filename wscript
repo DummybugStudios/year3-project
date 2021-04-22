@@ -137,6 +137,7 @@ def options(opt):
     opt.load('compiler_cxx')
     opt.load('cflags')
     opt.load('gnu_dirs')
+    opt.load('clang_compilation_database', tooldir='waf-tools')
 
     opt.add_option('--check-config',
                    help=('Print the current configuration.'),
