@@ -9,6 +9,8 @@
 #include "ns3/socket.h"
 #include "ns3/header.h"
 #include "ns3/ipv4-address.h"
+#include "ns3/simulator.h"
+#include <vector>
 
 
 using namespace ns3;
@@ -18,17 +20,19 @@ class ReputationHeader: public Header
 public:
     static TypeId GetTypeId();
     virtual TypeId GetInstanceTypeId() const {return GetTypeId();}
-    ReputationHeader(bool isRequest = true, bool isRSU = false) :
+    ReputationHeader() :
     m_reputationValue(0),
     m_address(0),
-    m_isRequest(isRequest),
-    m_isRSU(isRSU)
-    {
-    }
-    void SetData(uint32_t address, double reputationValue)
+    m_isRequest(false),
+    m_isRSU(false)
+    {}
+
+    void SetData(uint32_t address, bool isRequest, double reputationValue=0.0f, bool isRSU = false)
     {
         m_address = address;
         m_reputationValue = reputationValue;
+        m_isRequest = isRequest;
+        m_isRSU = isRSU;
     }
     bool IsRequest() {return m_isRequest;}
     bool IsRSU() {return m_isRSU;}
@@ -36,8 +40,8 @@ public:
     virtual void Print(std::ostream &os) const
     {
         os << (m_isRequest ? "REQUEST: " : "RESPONSE: ") <<
-        Ipv4Address(m_address) << " " <<
-        m_reputationValue << std::endl;
+        Ipv4Address(m_address) << "\t" <<
+        m_reputationValue;
     }
 
     double GetReputationValue(){return m_reputationValue;}
@@ -56,6 +60,12 @@ private:
     bool m_isRSU;
 };
 
+struct ReputationScore
+{
+    Ipv4Address address;
+    double m_reputationVal;
+};
+
 class TRIPApplication : public Application{
 public:
     static TypeId GetTypeId();
@@ -68,6 +78,7 @@ private:
     void PollForEvents();
     void ReceiveEventPacket(Ptr<Socket> socket);
     void ReceiveReputationPacket(Ptr<Socket> socket);
+    void UpdateReputationScores();
     bool isEvil;
     int m_eventPort = 1080; ///< Port for communication about events
     int m_reputationPort = 1081; ///< Port for communication about reputation
@@ -78,6 +89,10 @@ private:
     constexpr static double m_directTrustWeight = 0.3; ///< Weighting of a vehicle's own experience
     constexpr static double m_recTrustWeight = 0.4; ///< Weighting of other vehicle's recommendations
     constexpr static double m_rsuWeight = 0.3;     ///< Weighting of other vehicle's recommendations
+
+    bool m_isWaiting = false; ///< If true then the car is waiting for reputation packets for the address in m_waitingFor
+    Ipv4Address m_waitingFor; ///< Car whose reputation is about to be calculated
+    std::vector<ReputationScore> m_peerReputationScores;
 };
 
 

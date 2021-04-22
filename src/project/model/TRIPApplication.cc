@@ -5,7 +5,6 @@
 #include "TRIPApplication.h"
 #include "RoadEvents.h"
 #include "VanetApplication.h"
-#include "ns3/simulator.h"
 #include "ns3/mobility-model.h"
 #include "ns3/global-value.h"
 #include <iostream>
@@ -113,6 +112,7 @@ void TRIPApplication::PollForEvents() {
         p->AddHeader(header);
 
         // Create socket to send it
+        //FIXME: use the socket that already exists
         TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
         Ptr<Socket> socket = Socket::CreateSocket(GetNode(), tid);
         socket->SetAllowBroadcast(true);
@@ -125,10 +125,21 @@ void TRIPApplication::PollForEvents() {
     Simulator::Schedule(Seconds(1), &TRIPApplication::PollForEvents, this);
 }
 
-void TRIPApplication::ReceiveEventPacket(Ptr <Socket> socket) {
+void TRIPApplication::ReceiveEventPacket(Ptr <Socket> socket){
+    // TODO: add the event to a queue to be looked at later on instead of returning
+    if (m_isWaiting)
+        return;
+
+    // Keep a reference to the vehicle being evaluated here
+    Address address;
+    // FIXME: actually fucking store the packet somewhere
+    socket->RecvFrom(address);
+    m_waitingFor = InetSocketAddress::ConvertFrom(address).GetIpv4();
+    m_isWaiting = true;
+
     // Request reputation from other vehicles
-    ReputationHeader header(true);
-    header.SetData(123, 1.2123131f);
+    ReputationHeader header;
+    header.SetData(m_waitingFor.Get(), true);
     Ptr<Packet> p = Create<Packet>();
     p->AddHeader(header);
 
@@ -140,7 +151,57 @@ void TRIPApplication::ReceiveEventPacket(Ptr <Socket> socket) {
 
 void TRIPApplication::ReceiveReputationPacket(Ptr <Socket> socket) {
     ReputationHeader header;
-    Ptr<Packet> p  = socket->Recv();
+    Address address;
+    Ptr<Packet> p  = socket->RecvFrom(address);
+    InetSocketAddress remote = InetSocketAddress::ConvertFrom(address);
+    Ipv4Address ipv4Address =  remote.GetIpv4();
     p->RemoveHeader(header);
-    std::cout << header;
+    std::cout << GetNode()->GetId()+1 <<": " << header << "\tFROM " << ipv4Address << std::endl;
+
+    if (header.IsRequest())
+    {
+        // repurpose the header into a response header and send it back
+        header.SetData(header.GetAddress(), false, 0.5f);
+        p->AddHeader(header);
+        socket->SendTo(p,0,remote);
+        return;
+    }
+
+    // TODO: store it for the relevant car instead of returning
+    if (header.GetAddress() != m_waitingFor.Get())
+        return;
+
+    // TODO: do something else if it is an RSU
+    if (header.IsRSU())
+        return;
+
+    // Don't let a vehicle give its own reputation
+    if (ipv4Address.Get() == m_waitingFor.Get())
+        return;
+
+    std::cout << GetNode()->GetId()+1 << ": storing reputation score\n";
+    ReputationScore score{.address=Ipv4Address(header.GetAddress()),
+                          .m_reputationVal = header.GetReputationValue()};
+    m_peerReputationScores.push_back(score);
+
+    for (ReputationScore const &x : m_peerReputationScores)
+    {
+        std::cout << Simulator::Now().GetMilliSeconds()<<" "<< x.address << " " << x.m_reputationVal <<
+        " ("<<m_peerReputationScores.size() << ")"
+        << std::endl;
+    }
+    std::cout << std::endl;
+
+    // Calculate the final reputation score
+    if (m_peerReputationScores.size() >= 3)
+    {
+        UpdateReputationScores();
+    }
+}
+
+/**
+ * Update the reputation of a vehicle based on the scores given by the peers and the RSUs
+ */
+void TRIPApplication::UpdateReputationScores() {
+    //TODO: finish writing this thing
 }
