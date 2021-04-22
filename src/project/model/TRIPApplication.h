@@ -11,6 +11,7 @@
 #include "ns3/ipv4-address.h"
 #include "ns3/simulator.h"
 #include <vector>
+#include <map>
 
 
 using namespace ns3;
@@ -66,6 +67,13 @@ struct ReputationScore
     double m_reputationVal;
 };
 
+//TODO: think of a more descriptive name?
+struct Scores
+{
+    std::vector<ReputationScore> peerScores;
+    double rsuScore;
+};
+
 class TRIPApplication : public Application{
 public:
     static TypeId GetTypeId();
@@ -90,9 +98,8 @@ private:
     constexpr static double m_recTrustWeight = 0.4; ///< Weighting of other vehicle's recommendations
     constexpr static double m_rsuWeight = 0.3;     ///< Weighting of other vehicle's recommendations
 
-    bool m_isWaiting = false; ///< If true then the car is waiting for reputation packets for the address in m_waitingFor
-    Ipv4Address m_waitingFor; ///< Car whose reputation is about to be calculated
-    std::vector<ReputationScore> m_peerReputationScores;
+    std::map<Ipv4Address, Scores> m_carsBeingEvaluated; ///<Cars which are being evaluated
+    std::map<Ipv4Address, std::vector<Ptr<Packet>>> m_packets;
 };
 
 

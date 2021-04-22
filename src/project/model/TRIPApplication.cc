@@ -126,20 +126,21 @@ void TRIPApplication::PollForEvents() {
 }
 
 void TRIPApplication::ReceiveEventPacket(Ptr <Socket> socket){
-    // TODO: add the event to a queue to be looked at later on instead of returning
-    if (m_isWaiting)
-        return;
 
-    // Keep a reference to the vehicle being evaluated here
     Address address;
-    // FIXME: actually fucking store the packet somewhere
-    socket->RecvFrom(address);
-    m_waitingFor = InetSocketAddress::ConvertFrom(address).GetIpv4();
-    m_isWaiting = true;
+    Ptr<Packet> recvPacket = socket->RecvFrom(address);
+    Ipv4Address peerAddress = InetSocketAddress::ConvertFrom(address).GetIpv4();
+    auto search = m_carsBeingEvaluated.find(peerAddress);
+
+    if (search == m_carsBeingEvaluated.end())
+    {
+        m_carsBeingEvaluated[peerAddress] = Scores{};
+    }
+    m_packets[peerAddress].push_back(recvPacket);
 
     // Request reputation from other vehicles
     ReputationHeader header;
-    header.SetData(m_waitingFor.Get(), true);
+    header.SetData(peerAddress.Get(), true);
     Ptr<Packet> p = Create<Packet>();
     p->AddHeader(header);
 
@@ -154,9 +155,10 @@ void TRIPApplication::ReceiveReputationPacket(Ptr <Socket> socket) {
     Address address;
     Ptr<Packet> p  = socket->RecvFrom(address);
     InetSocketAddress remote = InetSocketAddress::ConvertFrom(address);
-    Ipv4Address ipv4Address =  remote.GetIpv4();
+    Ipv4Address peerAddress =  remote.GetIpv4();
+
     p->RemoveHeader(header);
-    std::cout << GetNode()->GetId()+1 <<": " << header << "\tFROM " << ipv4Address << std::endl;
+    std::cout << GetNode()->GetId()+1 << ": " << header << "\tFROM " << peerAddress << std::endl;
 
     if (header.IsRequest())
     {
@@ -167,36 +169,34 @@ void TRIPApplication::ReceiveReputationPacket(Ptr <Socket> socket) {
         return;
     }
 
-    // TODO: store it for the relevant car instead of returning
-    if (header.GetAddress() != m_waitingFor.Get())
+    auto evalCar = m_carsBeingEvaluated.find(Ipv4Address(header.GetAddress()));
+    if (evalCar == m_carsBeingEvaluated.end())
         return;
 
-    // TODO: do something else if it is an RSU
+    Scores &scores = evalCar->second;
+
     if (header.IsRSU())
+    {
+        scores.rsuScore = header.GetReputationValue();
         return;
+    }
 
     // Don't let a vehicle give its own reputation
-    if (ipv4Address.Get() == m_waitingFor.Get())
+    if (peerAddress.Get() == evalCar->first.Get())
         return;
 
     std::cout << GetNode()->GetId()+1 << ": storing reputation score\n";
-    ReputationScore score{.address=Ipv4Address(header.GetAddress()),
+    ReputationScore score{.address=evalCar->first,
                           .m_reputationVal = header.GetReputationValue()};
-    m_peerReputationScores.push_back(score);
 
-    for (ReputationScore const &x : m_peerReputationScores)
+    scores.peerScores.push_back(score);
+    for (ReputationScore const &x : scores.peerScores)
     {
         std::cout << Simulator::Now().GetMilliSeconds()<<" "<< x.address << " " << x.m_reputationVal <<
-        " ("<<m_peerReputationScores.size() << ")"
-        << std::endl;
+                  " ("<<scores.peerScores.size() << ")"
+                  << std::endl;
     }
     std::cout << std::endl;
-
-    // Calculate the final reputation score
-    if (m_peerReputationScores.size() >= 3)
-    {
-        UpdateReputationScores();
-    }
 }
 
 /**
