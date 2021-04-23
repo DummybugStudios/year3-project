@@ -125,6 +125,7 @@
 #include "ns3/VanetApplicationHeper.h"
 #include "ns3/RoadEvents.h"
 #include "ns3/EventLogger.h"
+#include "ns3/RSUApplicationHelper.h"
 
 
 using namespace ns3;
@@ -1723,6 +1724,11 @@ VanetRoutingExperiment::ConfigureApplications ()
     temp.Start(Seconds(0));
     temp.Stop(Seconds(m_TotalSimTime));
   }
+
+  RSUApplicationHelper rsuHelper;
+  ApplicationContainer rsuAppContainer = rsuHelper.Install(m_rsuNodes);
+  rsuAppContainer.Start(Seconds(0));
+  rsuAppContainer.Stop(Seconds(m_TotalSimTime));
 
   // ApplicationContainer app = appHelper.Install(m_adhocTxNodes);
   // app.Start(Seconds(0));

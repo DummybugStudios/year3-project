@@ -9,6 +9,7 @@
 def build(bld):
     module = bld.create_ns3_module('project', ['core', 'wave'])
     module.source = [
+        'model/RSUApplication.cc',
         'model/TRIPApplication.cc',
         'model/project-group.cc',
         'model/project-bsm-application.cc',
@@ -18,6 +19,7 @@ def build(bld):
         'model/EventLogger.cc',
         'helper/VanetApplicationHeper.cc',
         'helper/project-bsm-helper.cc',
+        'helper/RSUApplicationHelper.cc',
         ]
 
     module_test = bld.create_ns3_module_test_library('project')
@@ -33,6 +35,7 @@ def build(bld):
     headers = bld(features='ns3header')
     headers.module = 'project'
     headers.source = [
+        'model/RSUApplication.h',
         'model/TRIPApplication.h',
         'model/project-group.h',
         'model/project-bsm-application.h',
@@ -42,6 +45,7 @@ def build(bld):
         'model/EventLogger.h',
         'helper/VanetApplicationHeper.h',
         'helper/project-bsm-helper.h',
+        'helper/RSUApplicationHelper.h',
         ]
 
     if bld.env.ENABLE_EXAMPLES:
