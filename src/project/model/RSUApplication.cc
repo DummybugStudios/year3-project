@@ -41,7 +41,7 @@ void RSUApplication::ReceiveReputationPacket(Ptr<Socket> socket) {
         return;
 
     auto search = m_reputations.find(ipv4Address);
-    double reputation = 0.0f;
+    double reputation = 0.5f;
     if (search != m_reputations.end())
         reputation = search->second;
 

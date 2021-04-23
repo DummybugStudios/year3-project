@@ -8,6 +8,7 @@
 #include "ns3/mobility-model.h"
 #include "ns3/global-value.h"
 #include <iostream>
+#include <cmath>
 
 using namespace ns3;
 TypeId ReputationHeader::GetTypeId()
@@ -134,7 +135,7 @@ void TRIPApplication::ReceiveEventPacket(Ptr <Socket> socket){
 
     if (search == m_carsBeingEvaluated.end())
     {
-        m_carsBeingEvaluated[peerAddress] = Scores{};
+        m_carsBeingEvaluated[peerAddress] = Scores{.didRsuReply=false};
     }
     m_packets[peerAddress].push_back(recvPacket);
 
@@ -175,9 +176,10 @@ void TRIPApplication::ReceiveReputationPacket(Ptr <Socket> socket) {
 
     Scores &scores = evalCar->second;
 
-    if (header.IsRSU())
+    if (header.IsRSU() && !scores.didRsuReply)
     {
         scores.rsuScore = header.GetReputationValue();
+        scores.didRsuReply = true;
         return;
     }
 
@@ -188,31 +190,89 @@ void TRIPApplication::ReceiveReputationPacket(Ptr <Socket> socket) {
     // ensure that the same vehicle is not giving a reputation again
     // which can happen when the same node sends multiple road events notification
     // and the reputation request gets sent out multiple times
-    for (ReputationScore const &x : scores.peerScores)
+    for (PeerScores const &x : scores.peerScores)
     {
         if (peerAddress == x.referrerAddress)
             return;
     }
 
     std::cout << GetNode()->GetId()+1 << ": storing reputation score\n";
-    ReputationScore score{.address=evalCar->first,
+    PeerScores score{.address=evalCar->first,
                           .referrerAddress = peerAddress,
-                          .m_reputationVal = header.GetReputationValue()};
+                          .reputation = header.GetReputationValue()};
 
     scores.peerScores.push_back(score);
 
-    for (ReputationScore const &x : scores.peerScores)
+    for (PeerScores const &x : scores.peerScores)
     {
-        std::cout << Simulator::Now().GetMilliSeconds()<<" "<< x.address << " " << x.m_reputationVal <<
-                  " ("<<scores.peerScores.size() << ")"
+        std::cout << Simulator::Now().GetMilliSeconds() << " " << x.address << " " << x.reputation <<
+                  " (" << scores.peerScores.size() << ")"
                   << std::endl;
     }
     std::cout << std::endl;
+
+    if (scores.peerScores.size() >= 3)
+    {
+        DetermineTrustLevel(evalCar->first);
+    }
 }
 
 /**
  * Update the reputation of a vehicle based on the scores given by the peers and the RSUs
  */
-void TRIPApplication::UpdateReputationScores() {
-    //TODO: finish writing this thing
+TrustLevel TRIPApplication::DetermineTrustLevel(const Ipv4Address &address) {
+    Scores scores = m_carsBeingEvaluated[address];
+
+    // Sum the peer scores where each have the same weight:
+    // the sum of the weights has to add up to 1
+    double weight = 1.0f/scores.peerScores.size();
+
+    double peerScore = 0.0f;
+    for (PeerScores const &x : scores.peerScores)
+    {
+        peerScore += weight * x.reputation;
+    }
+
+    double rsuScore = scores.didRsuReply ? scores.rsuScore :0.5;
+
+    double reputationScore = m_directTrustWeight * 0.5 +
+            m_recTrustWeight * peerScore +
+            m_rsuWeight * rsuScore;
+
+    std::cout << "Final reputation Score: " << reputationScore << std::endl;
+
+    // Figure out the reputation score's membership in each set
+    double memberNotTrust = GetNormalDistribution(reputationScore, m_notTrustMean, m_notTrustSd);
+    double memberSomeTrust = GetNormalDistribution(reputationScore, m_someTrustMean, m_someTrustSd);
+    double memberTrust = GetNormalDistribution(reputationScore, m_fullTrustMean, m_fullTrustSd);
+
+    double total = memberNotTrust + memberSomeTrust + memberTrust;
+
+    // figure out the probabilities of it being each set
+    // p(SomeTrust) not needed since probabilities add up to 1
+    double pNotTrust = memberNotTrust/ total;
+    double pTrust = memberTrust/total;
+
+    // collapse the probabilities to figure out which set it belongs to:
+    double finalProbability = m_unirv->GetValue(0,1);
+    std::cout << "final prob: " << finalProbability << std::endl;
+
+    if (finalProbability <= pNotTrust)
+    {
+        // Reject event
+        std::cout << "NOT TRUSTING\n";
+        return NO_TRUST;
+    }
+    if (finalProbability >= (1 - pTrust))
+    {
+        // Accept Event and broadcast it further
+        std::cout << "FULL TRUST\n";
+        return FULL_TRUST;
+    }
+    std::cout << "SOME TRUST\n";
+    return SOME_TRUST;
+}
+
+double TRIPApplication::GetNormalDistribution(double x, double mean, double sd) {
+    return 1 / (sd * sqrt(2 * M_PI)) * pow(M_E, -0.5 * pow ((x - mean)/sd,2));
 }

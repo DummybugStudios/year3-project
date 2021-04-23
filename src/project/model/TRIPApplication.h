@@ -61,18 +61,26 @@ private:
     bool m_isRSU;
 };
 
-struct ReputationScore
+enum TrustLevel
+{
+    NO_TRUST,
+    SOME_TRUST,
+    FULL_TRUST,
+};
+
+struct PeerScores
 {
     Ipv4Address address;
     Ipv4Address referrerAddress;
-    double m_reputationVal;
+    double reputation;
 };
 
 //TODO: think of a more descriptive name?
 struct Scores
 {
-    std::vector<ReputationScore> peerScores;
+    std::vector<PeerScores> peerScores;
     double rsuScore;
+    bool didRsuReply;
 };
 
 class TRIPApplication : public Application{
@@ -87,7 +95,8 @@ private:
     void PollForEvents();
     void ReceiveEventPacket(Ptr<Socket> socket);
     void ReceiveReputationPacket(Ptr<Socket> socket);
-    void UpdateReputationScores();
+    TrustLevel DetermineTrustLevel(const Ipv4Address &address);
+    static double GetNormalDistribution (double x, double mean, double sd);
     bool isEvil;
     int m_eventPort = 1080; ///< Port for communication about events
     int m_reputationPort = 1081; ///< Port for communication about reputation
@@ -99,8 +108,19 @@ private:
     constexpr static double m_recTrustWeight = 0.4; ///< Weighting of other vehicle's recommendations
     constexpr static double m_rsuWeight = 0.3;     ///< Weighting of other vehicle's recommendations
 
+    // All the means for the three fuzzy sets
+    constexpr static double m_notTrustMean  = 0;
+    constexpr static double m_someTrustMean = 0.5;
+    constexpr static double m_fullTrustMean = 1.0f;
+
+    // Standard Deviation for the three fuzzy sets
+    constexpr static double m_notTrustSd  = 0.2;
+    constexpr static double m_someTrustSd = 0.2;
+    constexpr static double m_fullTrustSd = 0.2;
+
     std::map<Ipv4Address, Scores> m_carsBeingEvaluated; ///<Cars which are being evaluated
     std::map<Ipv4Address, std::vector<Ptr<Packet>>> m_packets;
+    std::map<Ipv4Address, double> m_reputations;
 };
 
 
