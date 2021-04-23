@@ -185,11 +185,22 @@ void TRIPApplication::ReceiveReputationPacket(Ptr <Socket> socket) {
     if (peerAddress.Get() == evalCar->first.Get())
         return;
 
+    // ensure that the same vehicle is not giving a reputation again
+    // which can happen when the same node sends multiple road events notification
+    // and the reputation request gets sent out multiple times
+    for (ReputationScore const &x : scores.peerScores)
+    {
+        if (peerAddress == x.referrerAddress)
+            return;
+    }
+
     std::cout << GetNode()->GetId()+1 << ": storing reputation score\n";
     ReputationScore score{.address=evalCar->first,
+                          .referrerAddress = peerAddress,
                           .m_reputationVal = header.GetReputationValue()};
 
     scores.peerScores.push_back(score);
+
     for (ReputationScore const &x : scores.peerScores)
     {
         std::cout << Simulator::Now().GetMilliSeconds()<<" "<< x.address << " " << x.m_reputationVal <<

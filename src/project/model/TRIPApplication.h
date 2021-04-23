@@ -64,6 +64,7 @@ private:
 struct ReputationScore
 {
     Ipv4Address address;
+    Ipv4Address referrerAddress;
     double m_reputationVal;
 };
 
