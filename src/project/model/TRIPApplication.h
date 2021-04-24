@@ -4,6 +4,7 @@
 
 #ifndef NS_3_32_TRIPAPPLICATION_H
 #define NS_3_32_TRIPAPPLICATION_H
+#include "RoadEvents.h"
 #include "ns3/application.h"
 #include "ns3/core-module.h"
 #include "ns3/socket.h"
@@ -83,6 +84,13 @@ struct Scores
     bool didRsuReply;
 };
 
+//FIXME: please rename
+struct FuckingStruct
+{
+    RoadEvent event;
+    Ipv4Address referrer;
+};
+
 class TRIPApplication : public Application{
 public:
     static TypeId GetTypeId();
@@ -121,6 +129,7 @@ private:
     std::map<Ipv4Address, Scores> m_carsBeingEvaluated; ///<Cars which are being evaluated
     std::map<Ipv4Address, std::vector<Ptr<Packet>>> m_packets;
     std::map<Ipv4Address, double> m_reputations;
+    std::vector<FuckingStruct> m_alreadySeenEvents;
 };
 
 

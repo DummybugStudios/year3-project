@@ -75,12 +75,14 @@ void TRIPApplication::StartApplication() {
     TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
     m_eventSocket = Socket::CreateSocket(GetNode(), tid);
     m_eventSocket->SetRecvCallback(MakeCallback(&TRIPApplication::ReceiveEventPacket, this));
+    m_eventSocket->SetAllowBroadcast(true);
     InetSocketAddress local = InetSocketAddress(Ipv4Address::GetAny(), m_eventPort);
     m_eventSocket->Bind(local);
 
     // Bind the reputation socket to 0.0.0.0:m_reputationPort
     m_reputationSocket = Socket::CreateSocket(GetNode(), tid);
     m_reputationSocket->SetRecvCallback(MakeCallback(&TRIPApplication::ReceiveReputationPacket, this));
+    m_reputationSocket->SetAllowBroadcast(true);
     local = InetSocketAddress(Ipv4Address::GetAny(), m_reputationPort);
     m_reputationSocket->Bind(local);
 
@@ -112,15 +114,9 @@ void TRIPApplication::PollForEvents() {
         Ptr<Packet> p = Create<Packet>();
         p->AddHeader(header);
 
-        // Create socket to send it
-        //FIXME: use the socket that already exists
-        TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
-        Ptr<Socket> socket = Socket::CreateSocket(GetNode(), tid);
-        socket->SetAllowBroadcast(true);
-
         InetSocketAddress remote = InetSocketAddress(Ipv4Address("255.255.255.255"), m_eventPort);
-        socket->Connect(remote);
-        socket->Send(p);
+        m_eventSocket->Connect(remote);
+        m_eventSocket->Send(p);
     }
 
     Simulator::Schedule(Seconds(1), &TRIPApplication::PollForEvents, this);
@@ -131,8 +127,40 @@ void TRIPApplication::ReceiveEventPacket(Ptr <Socket> socket){
     Address address;
     Ptr<Packet> recvPacket = socket->RecvFrom(address);
     Ipv4Address peerAddress = InetSocketAddress::ConvertFrom(address).GetIpv4();
-    auto search = m_carsBeingEvaluated.find(peerAddress);
 
+    EventPacketHeader eventHeader;
+    recvPacket->PeekHeader(eventHeader);
+
+    //Return if the same event sent by the same user has already been seen
+    // to avoid loops
+    //TODO: remove the casting and actually define it properly
+    for (auto const &x : m_alreadySeenEvents)
+    {
+        if (x.referrer == peerAddress &&
+        x.event.val == (int) eventHeader.GetVal() &&
+        x.event.x == (int) eventHeader.GetX() &&
+        x.event.y == (int) eventHeader.GetY())
+        {
+            return;
+        }
+    }
+
+    // Add event and referrer to already seen events
+    RoadEvent event(
+        eventHeader.GetX(),
+        eventHeader.GetY(),
+        eventHeader.GetVal()
+    );
+
+    // FIXME: rename please
+    FuckingStruct fuckingStruct {
+        .event = event,
+        .referrer = peerAddress
+    };
+
+    m_alreadySeenEvents.push_back(fuckingStruct);
+
+    auto search = m_carsBeingEvaluated.find(peerAddress);
     if (search == m_carsBeingEvaluated.end())
     {
         m_carsBeingEvaluated[peerAddress] = Scores{.didRsuReply=false};
@@ -146,7 +174,6 @@ void TRIPApplication::ReceiveEventPacket(Ptr <Socket> socket){
     p->AddHeader(header);
 
     InetSocketAddress remote = InetSocketAddress("255.255.255.255",m_reputationPort);
-    m_reputationSocket->SetAllowBroadcast(true);
     m_reputationSocket->Connect(remote);
     m_reputationSocket->Send(p);
 }
@@ -211,10 +238,41 @@ void TRIPApplication::ReceiveReputationPacket(Ptr <Socket> socket) {
     }
     std::cout << std::endl;
 
-    if (scores.peerScores.size() >= 3)
+    if (scores.peerScores.size() < 3)
+        return;
+
+    TrustLevel trustLevel = DetermineTrustLevel(evalCar->first);
+
+    // TODO: notify someone if the event is trusted or not:
+    if (trustLevel == NO_TRUST)
+        return;
+
+    bool forwarding = true;
+    if (trustLevel == SOME_TRUST)
     {
-        DetermineTrustLevel(evalCar->first);
+        // Figure out if the event should be forwarded or not
+        double pForwardEvent = m_someTrustMean - m_notTrustMean - m_notTrustSd;
+        double decider = m_unirv->GetValue(0,1);
+        // Do trust the event
+        if (pForwardEvent < decider)
+            forwarding = false;
     }
+
+    // Clear all the packets that are relying on being sent by this user
+    if (!forwarding)
+    {
+        m_packets[Ipv4Address(header.GetAddress())].clear();
+    }
+    else
+    {
+        InetSocketAddress broadcast = InetSocketAddress("255.255.255.255", m_eventPort);
+        // Loop over all the waiting packets and send them
+        for (auto const &x : m_packets[Ipv4Address(header.GetAddress())])
+        {
+            m_eventSocket->SendTo(x, 0, broadcast);
+        }
+    }
+
 }
 
 /**

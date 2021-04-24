@@ -112,8 +112,13 @@ int main( int argc, char **argv)
     Simulator::Schedule(Seconds(2), &sendEventPacket,socket1, interfaces);
     Simulator::Schedule(Seconds(3), &sendEventPacket,socket2, interfaces);
 
+    // Make socket 1 send the same event again
+    // The thingy should not accept it
+    Simulator::Schedule(Seconds(3.1), &sendEventPacket,socket1, interfaces);
+
     // Send responses in a different order
     // nodes[2] and then nodes[1]
+    // It should print them in reverese order too
     Simulator::Schedule(Seconds(4), &sendReputationFor, interfaces.GetAddress(1), interfaces, socket2);
     Simulator::Schedule(Seconds(5), &sendReputationFor, interfaces.GetAddress(2), interfaces, socket1);
 
