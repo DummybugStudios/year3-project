@@ -13,6 +13,7 @@
 #include "ns3/simulator.h"
 #include <vector>
 #include <map>
+#include <memory>
 
 
 using namespace ns3;
@@ -71,7 +72,6 @@ enum TrustLevel
 
 struct PeerScores
 {
-    Ipv4Address address;
     Ipv4Address referrerAddress;
     double reputation;
 };
@@ -79,16 +79,21 @@ struct PeerScores
 //TODO: think of a more descriptive name?
 struct Scores
 {
-    std::vector<PeerScores> peerScores;
+    std::shared_ptr<std::vector<PeerScores>> peerScores;
     double rsuScore;
     bool didRsuReply;
 };
 
-//FIXME: please rename
-struct FuckingStruct
+struct EventNotification
 {
     RoadEvent event;
     Ipv4Address referrer;
+};
+
+struct UnverifiedEventEntry
+{
+    EventNotification notification;
+    std::shared_ptr<std::vector<PeerScores>> peerScores;
 };
 
 class TRIPApplication : public Application{
@@ -129,7 +134,8 @@ private:
     std::map<Ipv4Address, Scores> m_carsBeingEvaluated; ///<Cars which are being evaluated
     std::map<Ipv4Address, std::vector<Ptr<Packet>>> m_packets;
     std::map<Ipv4Address, double> m_reputations;
-    std::vector<FuckingStruct> m_alreadySeenEvents;
+    std::vector<EventNotification> m_alreadySeenEvents;
+    std::vector<UnverifiedEventEntry> m_unverifiedEvents;
 };
 
 

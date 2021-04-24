@@ -152,18 +152,27 @@ void TRIPApplication::ReceiveEventPacket(Ptr <Socket> socket){
         eventHeader.GetVal()
     );
 
-    // FIXME: rename please
-    FuckingStruct fuckingStruct {
+    EventNotification eventNotification {
         .event = event,
         .referrer = peerAddress
     };
 
-    m_alreadySeenEvents.push_back(fuckingStruct);
+    m_alreadySeenEvents.push_back(eventNotification);
+
+    // Make the event unverified
+    auto peerScores = std::make_shared<std::vector<PeerScores>>();
+    UnverifiedEventEntry unverifiedEventEntry{
+        .notification = eventNotification,
+        .peerScores = peerScores
+    };
+    m_unverifiedEvents.push_back(unverifiedEventEntry);
 
     auto search = m_carsBeingEvaluated.find(peerAddress);
     if (search == m_carsBeingEvaluated.end())
     {
-        m_carsBeingEvaluated[peerAddress] = Scores{.didRsuReply=false};
+        m_carsBeingEvaluated[peerAddress] = Scores{
+            .peerScores = peerScores,
+            .didRsuReply=false};
     }
     m_packets[peerAddress].push_back(recvPacket);
 
@@ -217,62 +226,57 @@ void TRIPApplication::ReceiveReputationPacket(Ptr <Socket> socket) {
     // ensure that the same vehicle is not giving a reputation again
     // which can happen when the same node sends multiple road events notification
     // and the reputation request gets sent out multiple times
-    for (PeerScores const &x : scores.peerScores)
+    for (PeerScores const &x : *scores.peerScores)
     {
         if (peerAddress == x.referrerAddress)
             return;
     }
 
     std::cout << GetNode()->GetId()+1 << ": storing reputation score\n";
-    PeerScores score{.address=evalCar->first,
-                          .referrerAddress = peerAddress,
-                          .reputation = header.GetReputationValue()};
+    PeerScores score{.referrerAddress = peerAddress,
+                     .reputation = header.GetReputationValue()};
 
-    scores.peerScores.push_back(score);
+    scores.peerScores->push_back(score);
 
-    for (PeerScores const &x : scores.peerScores)
+    for (PeerScores const &x : *scores.peerScores)
     {
-        std::cout << Simulator::Now().GetMilliSeconds() << " " << x.address << " " << x.reputation <<
-                  " (" << scores.peerScores.size() << ")"
+        std::cout << Simulator::Now().GetMilliSeconds() << " " << evalCar->first << " " << x.reputation <<
+                  " (" << scores.peerScores->size() << ")"
                   << std::endl;
     }
     std::cout << std::endl;
 
-    if (scores.peerScores.size() < 3)
+    if (scores.peerScores->size() < 3)
         return;
 
     TrustLevel trustLevel = DetermineTrustLevel(evalCar->first);
+    //TODO: clear the peerscores and store this whole thing in
+    m_carsBeingEvaluated.erase(peerAddress);
 
     // TODO: notify someone if the event is trusted or not:
     if (trustLevel == NO_TRUST)
         return;
 
-    bool forwarding = true;
     if (trustLevel == SOME_TRUST)
     {
-        // Figure out if the event should be forwarded or not
+        // Figure out if the event should be accepted or not
         double pForwardEvent = m_someTrustMean - m_notTrustMean - m_notTrustSd;
         double decider = m_unirv->GetValue(0,1);
-        // Do trust the event
+        // Accept the event
         if (pForwardEvent < decider)
-            forwarding = false;
-    }
-
-    // Clear all the packets that are relying on being sent by this user
-    if (!forwarding)
-    {
-        m_packets[Ipv4Address(header.GetAddress())].clear();
-    }
-    else
-    {
-        InetSocketAddress broadcast = InetSocketAddress("255.255.255.255", m_eventPort);
-        // Loop over all the waiting packets and send them
-        for (auto const &x : m_packets[Ipv4Address(header.GetAddress())])
         {
-            m_eventSocket->SendTo(x, 0, broadcast);
+            std::cout << "Accepting Events";
+            m_packets[Ipv4Address(header.GetAddress())].clear();
+            return;
         }
     }
-
+    // Forward the packets when trust level is FULL_TRUST
+    InetSocketAddress broadcast = InetSocketAddress("255.255.255.255", m_eventPort);
+    // Loop over all the waiting packets and send them
+    for (auto const &x : m_packets[Ipv4Address(header.GetAddress())])
+    {
+        m_eventSocket->SendTo(x, 0, broadcast);
+    }
 }
 
 /**
@@ -283,10 +287,10 @@ TrustLevel TRIPApplication::DetermineTrustLevel(const Ipv4Address &address) {
 
     // Sum the peer scores where each have the same weight:
     // the sum of the weights has to add up to 1
-    double weight = 1.0f/scores.peerScores.size();
+    double weight = 1.0f/scores.peerScores->size();
 
     double peerScore = 0.0f;
-    for (PeerScores const &x : scores.peerScores)
+    for (auto const &x : *scores.peerScores)
     {
         peerScore += weight * x.reputation;
     }
