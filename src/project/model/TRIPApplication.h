@@ -108,6 +108,7 @@ private:
     void PollForEvents();
     void ReceiveEventPacket(Ptr<Socket> socket);
     void ReceiveReputationPacket(Ptr<Socket> socket);
+    void HandleEventVerification(const UnverifiedEventEntry &event, bool isTrue);
     TrustLevel DetermineTrustLevel(const Ipv4Address &address);
     static double GetNormalDistribution (double x, double mean, double sd);
     bool isEvil;
@@ -134,6 +135,7 @@ private:
     std::map<Ipv4Address, Scores> m_carsBeingEvaluated; ///<Cars which are being evaluated
     std::map<Ipv4Address, std::vector<Ptr<Packet>>> m_packets;
     std::map<Ipv4Address, double> m_reputations;
+    std::map<Ipv4Address, double> m_weights;
     std::vector<EventNotification> m_alreadySeenEvents;
     std::vector<UnverifiedEventEntry> m_unverifiedEvents;
 };

@@ -108,6 +108,19 @@ void TRIPApplication::PollForEvents() {
 
     for (const auto &event : events)
     {
+        // TODO: so ugly
+        // For each event notification check if it this event is mentioned anywhere
+        for (const auto &notification : m_unverifiedEvents)
+        {
+            const auto &notificationEvent = notification.notification.event;
+            if (notificationEvent.x == event->x && notificationEvent.y == event->y)
+            {
+                if (notificationEvent.val == event->val)
+                    HandleEventVerification(notification, true);
+                else
+                    HandleEventVerification(notification, false);
+            }
+        }
         // TODO: change the val in the header if the car is evil
         EventPacketHeader header;
         header.SetData(event->x, event->y, event->val);
@@ -200,7 +213,12 @@ void TRIPApplication::ReceiveReputationPacket(Ptr <Socket> socket) {
     if (header.IsRequest())
     {
         // repurpose the header into a response header and send it back
-        header.SetData(header.GetAddress(), false, 0.5f);
+        //TODO: default reputation value
+        double reputation = 0.5;
+        auto search = m_reputations.find(Ipv4Address(header.GetAddress()));
+        if (search != m_reputations.end())
+            reputation = search->second;
+        header.SetData(header.GetAddress(), false, reputation);
         p->AddHeader(header);
         socket->SendTo(p,0,remote);
         return;
@@ -283,21 +301,36 @@ void TRIPApplication::ReceiveReputationPacket(Ptr <Socket> socket) {
  * Update the reputation of a vehicle based on the scores given by the peers and the RSUs
  */
 TrustLevel TRIPApplication::DetermineTrustLevel(const Ipv4Address &address) {
+
+    // TODO: default reputation value
+    double selfReputation = 0.5;
+    auto reputationSearch = m_reputations.find(address);
+    if (reputationSearch != m_reputations.end() )
+        selfReputation = reputationSearch->second;
+
     Scores scores = m_carsBeingEvaluated[address];
-
-    // Sum the peer scores where each have the same weight:
-    // the sum of the weights has to add up to 1
-    double weight = 1.0f/scores.peerScores->size();
-
-    double peerScore = 0.0f;
+    // collect all the weights so you can use as ratios
+    std::vector<double> weights;
+    double totalWeights = 0.0;
     for (auto const &x : *scores.peerScores)
     {
-        peerScore += weight * x.reputation;
+        double weight = 0.5;
+        auto search = m_weights.find(x.referrerAddress);
+        if (search != m_weights.end())
+            weight = search->second;
+        weights.push_back(weight);
+        totalWeights += weight;
+    }
+
+    double peerScore = 0.0f;
+    for (long unsigned int i = 0; i < weights.size(); i++)
+    {
+        peerScore += (weights[i] / totalWeights) * scores.peerScores->at(i).reputation;
     }
 
     double rsuScore = scores.didRsuReply ? scores.rsuScore :0.5;
 
-    double reputationScore = m_directTrustWeight * 0.5 +
+    double reputationScore = m_directTrustWeight * selfReputation +
             m_recTrustWeight * peerScore +
             m_rsuWeight * rsuScore;
 
@@ -337,4 +370,71 @@ TrustLevel TRIPApplication::DetermineTrustLevel(const Ipv4Address &address) {
 
 double TRIPApplication::GetNormalDistribution(double x, double mean, double sd) {
     return 1 / (sd * sqrt(2 * M_PI)) * pow(M_E, -0.5 * pow ((x - mean)/sd,2));
+}
+
+void TRIPApplication::HandleEventVerification(const UnverifiedEventEntry &event, bool isTrue) {
+
+    // Adjust reputation of vehicle
+    // TODO: default reputation value
+    auto thing = m_reputations.find(event.notification.referrer);
+    double reputation = 0.5f;
+    if (thing != m_reputations.end())
+        reputation = thing->second;
+
+    if (isTrue)
+    {
+        reputation += 0.1;
+        reputation = reputation > 1.0 ? 1.0 : reputation;
+    }
+    else
+    {
+        reputation -= 0.1;
+        reputation = reputation < 0.0 ? 0.0 : reputation;
+    }
+
+    m_reputations[event.notification.referrer] = reputation;
+
+    // punish or reward reputations
+    for (auto const &x : *event.peerScores)
+    {
+        // TODO: have a default reputation value instead of using 0.5 everywhere
+        if (x.reputation == 0.5)
+            continue;
+
+        double weight = 0.5;
+        auto search = m_weights.find(event.notification.referrer);
+        if (search != m_weights.end())
+            weight = search->second;
+
+        // TODO: there is probably a better way to write it
+        // you can turn isTrue into -0.1 and +0.1 depending on if it is true or false
+        if (isTrue)
+        {
+            if (x.reputation > 0.5)
+            {
+                weight += 0.1;
+                weight = weight > 1.0 ? 1.0 : weight;
+            }
+            else
+            {
+                weight -= 0.1;
+                weight = weight < 0.0 ? 0.0 : weight;
+            }
+        }
+        else
+        {
+            if (x.reputation > 0.5)
+            {
+                weight -= 0.1;
+                weight = weight < 0.0 ? 0.0 : weight;
+            }
+            else
+            {
+                weight += 0.1;
+                weight = weight > 1.0 ? 1.0 : weight;
+            }
+        }
+
+        m_weights[x.referrerAddress] = weight;
+    }
 }
