@@ -108,8 +108,8 @@ void TRIPApplication::PollForEvents() {
 
     for (const auto &event : events)
     {
-        // TODO: so ugly
         // For each event notification check if it this event is mentioned anywhere
+        auto iter = m_unverifiedEvents.begin();
         for (const auto &notification : m_unverifiedEvents)
         {
             const auto &notificationEvent = notification.notification.event;
@@ -119,7 +119,9 @@ void TRIPApplication::PollForEvents() {
                     HandleEventVerification(notification, true);
                 else
                     HandleEventVerification(notification, false);
+                m_unverifiedEvents.erase(iter);
             }
+            iter++;
         }
         // TODO: change the val in the header if the car is evil
         EventPacketHeader header;
