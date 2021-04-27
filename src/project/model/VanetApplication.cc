@@ -104,7 +104,9 @@ void VanetApplication::ReceiveEventPacket(Ptr<Socket> socket)
 
     std::cout << "(" << header.GetX() <<", " << header.GetY() <<") : "<<header.GetVal()<<std::endl;
 
-    EventLogger::guess(header.GetX(), header.GetY(), header.GetVal(), true);
+    // Notify the event logger about the event arriving and immediately accept it
+    EventLogger::guess(GetNode()->GetId(), header.GetX(), header.GetY(), header.GetVal(), ARRIVED);
+    EventLogger::guess(GetNode()->GetId(), header.GetX(), header.GetY(), header.GetVal(), ACCEPTED);
 }
 
 
