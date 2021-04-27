@@ -123,7 +123,10 @@ void TRIPApplication::PollForEvents() {
         }
         // TODO: change the val in the header if the car is evil
         EventPacketHeader header;
-        header.SetData(event->x, event->y, event->val);
+        int evilValue = event->val;
+        if (isEvil)
+            evilValue = 909090;
+        header.SetData(event->x, event->y, evilValue);
         Ptr<Packet> p = Create<Packet>();
         p->AddHeader(header);
 

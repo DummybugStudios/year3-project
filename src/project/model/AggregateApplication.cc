@@ -135,7 +135,8 @@ void AggregateApplication::PollForEvents()
         {
             Ptr<Packet> p = Create<Packet>();
             AggregateEventHeader header;
-            header.SetData(event->x, event->y, event->val, 1);
+            int value = isEvil ? 909090 : event->val;
+            header.SetData(event->x, event->y, value, 1);
             p->AddHeader(header);
 
             // TODO: find out if this creates some sort of memory leak
@@ -232,9 +233,8 @@ void AggregateApplication::ReceiveEventPacket(Ptr<Socket> socket)
     if (header.GetSignatureCount() < 3)
     {
         AggregateEventHeader header;
-        copy->RemoveHeader(header);
+        copy->PeekHeader(header);
         header.IncrementSignatureCount();
-        copy->AddHeader(header);
 
         AggregateSignatureTrailer trailer;
         trailer.SetSignature(GetNode()->GetId());
