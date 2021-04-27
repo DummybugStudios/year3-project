@@ -5,6 +5,7 @@
 #include "TRIPApplication.h"
 #include "RoadEvents.h"
 #include "VanetApplication.h"
+#include "EventLogger.h"
 #include "ns3/mobility-model.h"
 #include "ns3/global-value.h"
 #include <iostream>
@@ -163,6 +164,8 @@ void TRIPApplication::ReceiveEventPacket(Ptr <Socket> socket){
         }
     }
 
+    // Notify event logger that you have recieved an event
+    EventLogger::guess(GetNode()->GetId(), eventHeader.GetX(), eventHeader.GetY(), eventHeader.GetVal(), ARRIVED);
     // Add event and referrer to already seen events
     RoadEvent event(
         eventHeader.GetX(),
@@ -206,12 +209,12 @@ void TRIPApplication::ReceiveEventPacket(Ptr <Socket> socket){
 }
 
 void TRIPApplication::ReceiveReputationPacket(Ptr <Socket> socket) {
-    ReputationHeader header;
-    Address address;
-    Ptr<Packet> p  = socket->RecvFrom(address);
-    InetSocketAddress remote = InetSocketAddress::ConvertFrom(address);
+    Address baseAddress;
+    Ptr<Packet> p  = socket->RecvFrom(baseAddress);
+    InetSocketAddress remote = InetSocketAddress::ConvertFrom(baseAddress);
     Ipv4Address peerAddress =  remote.GetIpv4();
 
+    ReputationHeader header;
     p->RemoveHeader(header);
     std::cout << GetNode()->GetId()+1 << ": " << header << "\tFROM " << peerAddress << std::endl;
 
@@ -276,30 +279,40 @@ void TRIPApplication::ReceiveReputationPacket(Ptr <Socket> socket) {
     //TODO: clear the peerscores and store this whole thing in
     m_carsBeingEvaluated.erase(peerAddress);
 
-    // TODO: notify someone if the event is trusted or not:
+    bool acceptEvent = true;
+    Ipv4Address headerAddress = Ipv4Address(header.GetAddress());
     if (trustLevel == NO_TRUST)
-        return;
-
-    if (trustLevel == SOME_TRUST)
+    {
+        acceptEvent = false;
+    }
+    else if (trustLevel == SOME_TRUST)
     {
         // Figure out if the event should be accepted or not
         double pForwardEvent = m_someTrustMean - m_notTrustMean - m_notTrustSd;
-        double decider = m_unirv->GetValue(0,1);
+        double decider = m_unirv->GetValue(0, 1);
         // Accept the event
         if (pForwardEvent < decider)
+            acceptEvent = false;
+    }
+    else
+    {
+        // Forward the packets when trust level is FULL_TRUST
+        InetSocketAddress broadcast = InetSocketAddress("255.255.255.255", m_eventPort);
+        // Loop over all the waiting packets and send them
+        for (auto const &x : m_packets[headerAddress])
         {
-            std::cout << "Accepting Events";
-            m_packets[Ipv4Address(header.GetAddress())].clear();
-            return;
+            m_eventSocket->SendTo(x, 0, broadcast);
         }
     }
-    // Forward the packets when trust level is FULL_TRUST
-    InetSocketAddress broadcast = InetSocketAddress("255.255.255.255", m_eventPort);
-    // Loop over all the waiting packets and send them
-    for (auto const &x : m_packets[Ipv4Address(header.GetAddress())])
+    // Go through all the packets belonging to that address and either accept or reject them
+    for (const auto &x : m_packets[headerAddress])
     {
-        m_eventSocket->SendTo(x, 0, broadcast);
+        EventPacketHeader eventPacketHeader;
+        x->PeekHeader(eventPacketHeader);
+        EventLogger::guess(GetNode()->GetId(), eventPacketHeader.GetX(), eventPacketHeader.GetY(), eventPacketHeader.GetVal(),
+                           acceptEvent ? ACCEPTED : REJECTED);
     }
+    m_packets[headerAddress].clear();
 }
 
 /**
@@ -411,8 +424,6 @@ void TRIPApplication::HandleEventVerification(const UnverifiedEventEntry &event,
         if (search != m_weights.end())
             weight = search->second;
 
-        // TODO: there is probably a better way to write it
-        // you can turn isTrue into -0.1 and +0.1 depending on if it is true or false
         if (isTrue)
         {
             if (x.reputation > 0.5)
