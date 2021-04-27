@@ -3,13 +3,19 @@
 
 #include "RoadEvents.h"
 
+enum EventType
+{
+    ARRIVED,
+    ACCEPTED,
+    REJECTED
+};
 
 class EventLogger
 {
     public:
-    static void guess(int x ,int y, int val, bool accepted);
-    static void printStats();
-    static int m_wrong, m_right;
+    static void guess(uint32_t nodeid, int x, int y, int val, EventType type);
+private:
+    static bool firstCall;
 };
 
 #endif

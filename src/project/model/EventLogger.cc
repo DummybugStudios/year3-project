@@ -6,36 +6,27 @@
 #include <vector> 
 
 #include "EventLogger.h"
+#include "ns3/simulator.h"
+#include <fstream>
 
-int EventLogger::m_right(0);
-int EventLogger::m_wrong(0);
+bool EventLogger::firstCall(true);
 
-void EventLogger::guess(int x, int y, int val, bool accepted)
+void EventLogger::guess(uint32_t nodeid, int x, int y, int val, EventType type)
 {
     vector<RoadEvent> events = RoadEventManger::getEvents();
-
-
-    for (auto const &event : events)
+    std::ofstream csvFile;
+    // Open File in append mode
+    csvFile.open("results.csv", ios::app);
+    if (firstCall)
     {
-        if (event.x == x && event.y == y && event.val == val) 
-        {
-            if (accepted)
-                m_right++;
-            else
-                m_wrong++;
-
-            return;
-        }
+        // Write csv heading the first time it is called
+        // time is the simulator time
+        // node id is the id of the node calling this event
+        // x, y, and val are information about the event
+        // type is either arrived, rejected, or accepted (0,1,or 2 respectively)
+        csvFile  << "time, id, x, y, val, type"<< std::endl;
+        firstCall = false;
     }
-
-    if (accepted)
-        m_wrong++;
-    else
-        m_right++; 
-
-}
-
-void EventLogger::printStats()
-{
-    std::cout << m_right << " " << m_wrong << std::endl;
+    csvFile << ns3::Simulator::Now().GetMilliSeconds() <<"," <<
+    nodeid<< ","<< x << "," << y << "," << val <<","<< type << std::endl;
 }
