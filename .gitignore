@@ -1,5 +1,7 @@
 notes
 build/
+optimized_build/
+venv/
 .idea/
 .vscode/ 
 *.xml
