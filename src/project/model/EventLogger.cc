@@ -16,7 +16,7 @@ void EventLogger::guess(uint32_t nodeid, int x, int y, int val, EventType type)
     vector<RoadEvent> events = RoadEventManger::getEvents();
     std::ofstream csvFile;
     // Open File in append mode
-    csvFile.open("results.csv", ios::app);
+    csvFile.open("results/results.csv", ios::app);
     if (firstCall)
     {
         // Write csv heading the first time it is called
