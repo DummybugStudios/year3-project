@@ -107,20 +107,22 @@ void TRIPApplication::PollForEvents() {
     std::vector<RoadEvent *> events = RoadEventManger::getReachableEvents(
             (int)position.x,(int) position.y, threshold.Get());
 
+    // For each event verify them and/or
     for (const auto &event : events)
     {
-        // For each event notification check if it this event is mentioned anywhere
-        auto iter = m_unverifiedEvents.begin();
-        for (const auto &notification : m_unverifiedEvents)
+        // Check to see if any events can be verified
+        for (auto iter = m_unverifiedEvents.begin(); iter != m_unverifiedEvents.end();)
         {
-            const auto &notificationEvent = notification.notification.event;
+            const auto &notificationEvent = iter->notification.event;
             if (notificationEvent.x == event->x && notificationEvent.y == event->y)
             {
                 if (notificationEvent.val == event->val)
-                    HandleEventVerification(notification, true);
+                    HandleEventVerification(*iter, true);
                 else
-                    HandleEventVerification(notification, false);
-                m_unverifiedEvents.erase(iter);
+                    HandleEventVerification(*iter, false);
+                iter = m_unverifiedEvents.erase(iter);
+                // Continue ensure the ++iterator is not called
+                continue;
             }
             iter++;
         }
