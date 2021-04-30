@@ -107,6 +107,7 @@ class AggregateApplication : public Application
     int m_eventPort = 1080;    ///< Port for event communication
     Ptr<Socket> m_eventSocket;
     Ptr<ProjectBsmApplication> m_bsmApplication;
+    constexpr static int m_acceptThreshold = 3;
 };
 
 #endif
