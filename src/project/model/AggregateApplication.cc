@@ -294,10 +294,16 @@ bool AggregateApplication::SendToOtherGroups(Ptr <Packet> p) {
     std::string debugMessage("\t");
     debugMessage += std::to_string(GetNode()->GetId());
     debugMessage += std::string(": sending in other groups to: ");
+
+    // Pick one node from each group and send them a message
+    std::vector<int> seenGroups;
     for (auto const &x : m_bsmApplication->m_reachableNodes)
     {
-        if (x.second->groupId != groupId && x.second->groupId != -1)
+        if (x.second->groupId != groupId &&
+        std::find(seenGroups.begin(), seenGroups.end(), x.second->groupId) != seenGroups.end() &&
+        x.second->groupId != -1)
         {
+            seenGroups.push_back(x.second->groupId);
             InetSocketAddress remote = InetSocketAddress(getNodeAddress(x.first), m_eventPort);
             socket->Connect(remote);
             socket->Send(p);
