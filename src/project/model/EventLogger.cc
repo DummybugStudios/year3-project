@@ -16,7 +16,6 @@ void EventLogger::guess(uint32_t nodeid, int x, int y, int val, EventType type)
     vector<RoadEvent> events = RoadEventManger::getEvents();
     std::ofstream csvFile;
     // Open File in append mode
-    csvFile.open("results/results.csv", ios::app);
     if (firstCall)
     {
         // Write csv heading the first time it is called
@@ -24,9 +23,12 @@ void EventLogger::guess(uint32_t nodeid, int x, int y, int val, EventType type)
         // node id is the id of the node calling this event
         // x, y, and val are information about the event
         // type is either arrived, rejected, or accepted (0,1,or 2 respectively)
+        csvFile.open("results/results.csv", ios::trunc);
         csvFile  << "time, id, x, y, val, type"<< std::endl;
+        csvFile.close();
         firstCall = false;
     }
+    csvFile.open("results/results.csv", ios::app);
     csvFile << ns3::Simulator::Now().GetMilliSeconds() <<"," <<
     nodeid<< ","<< x << "," << y << "," << val <<","<< type << std::endl;
 }
