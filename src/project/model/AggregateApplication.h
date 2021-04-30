@@ -52,7 +52,7 @@ public:
     virtual uint32_t GetSerializedSize() const;
     virtual void Print (std::ostream &os) const
     {
-        os << "x: " << m_x << " y: " << m_y << " val: " << m_val << " signatureCount: " << m_signatureCount << std::endl;
+        os << "x: " << m_x << " y: " << m_y << " val: " << m_val << " signatureCount: " << m_signatureCount;
     }
 
 private:
@@ -71,7 +71,7 @@ public:
     virtual TypeId GetInstanceTypeId() const {return GetTypeId();}
     virtual void Print(std::ostream &os) const
     {
-        os << "Trailer contains signature from node: " << m_nodeId << std::endl;
+        os << "Trailer contains signature from node: " << m_nodeId;
     }
 
     void SetSignature(uint32_t nodeId)
@@ -107,7 +107,6 @@ class AggregateApplication : public Application
     int m_eventPort = 1080;    ///< Port for event communication
     Ptr<Socket> m_eventSocket;
     Ptr<ProjectBsmApplication> m_bsmApplication;
-    std::vector<RoadEvent *> m_recentEvents;
 };
 
 #endif

@@ -61,6 +61,7 @@ void AggregateSignatureTrailer::Serialize(Buffer::Iterator start) const {
 }
 
 uint32_t AggregateSignatureTrailer::Deserialize(Buffer::Iterator start) {
+    start.Prev(GetSerializedSize());
     m_nodeId = start.ReadNtohU32();
     return sizeof(uint32_t);
 }
@@ -147,9 +148,7 @@ void AggregateApplication::PollForEvents()
 
             std::cout << Simulator::Now().GetMilliSeconds()/1000.0f<<"s "<<GetNode()->GetId() <<": (" << event->x << ", " << event->y<< "):" << event->val << std::endl;
 
-            bool sent = SendToNearbyNodes(p);
-            if (sent)
-                m_recentEvents.push_back(event);
+            SendToNearbyNodes(p);
         }
     }
     Simulator::Schedule(MilliSeconds(1000 + m_unirv->GetInteger(0,10.0f)), &AggregateApplication::PollForEvents, this);
@@ -165,30 +164,34 @@ void AggregateApplication::ReceiveEventPacket(Ptr<Socket> socket)
     AggregateEventHeader header;
     p->RemoveHeader(header);
 
-    // Check if data information is already in your memory:
-    std::cout << Simulator::Now().GetMilliSeconds()/1000.0f<<"s "<<GetNode()->GetId() << ": ";
-    std::cout << "(" << header.GetX() <<", " << header.GetY() <<") : "<<header.GetVal() << "(" << header.GetSignatureCount() << ") ";
-
-    bool found = false;
-    for (auto const &x : m_recentEvents)
+    // Only continue with the event if you HAVEN'T already signed it
+    // This loop can also cryptographically validate the signatures
+    bool alreadySigned = false;
+    AggregateSignatureTrailer trailer;
+    for (int i =0; i < header.GetSignatureCount(); i++)
     {
-        if (x->x == header.GetX() && x->y == header.GetY())
+        p->RemoveTrailer(trailer);
+        if (trailer.GetSignature() == GetNode()->GetId())
         {
-            found = true;
+            alreadySigned = true;
             break;
         }
     }
 
-    if (found) {
-        std::cout << "ALREADY STORED\n" ;
+    // TODO: Maybe don't immediately return
+    // If the packet is already signed by you but has enough signatures then it might still
+    // be useful to try and send it to other groups
+    if (alreadySigned)
         return;
-    }
+
+    std::cout << Simulator::Now().GetMilliSeconds()/1000.0f<<"s "<<GetNode()->GetId() << ": ";
+    std::cout << "(" << header.GetX() <<", " << header.GetY() <<") : "<<header.GetVal() << " (" << header.GetSignatureCount() << ") ";
 
     EventLogger::guess(GetNode()->GetId(), header.GetX(), header.GetY(), header.GetVal(), ARRIVED);
 
-    // Just return if event cannot be validated
+    // Reject if event cannot be validated
     RoadEvent *event = nullptr;
-    if (header.GetSignatureCount() < 4)
+    if (header.GetSignatureCount() < 3)
     {
         IntegerValue threshold;
         GlobalValue::GetValueByName("VRCthreshold", threshold);
@@ -206,32 +209,9 @@ void AggregateApplication::ReceiveEventPacket(Ptr<Socket> socket)
         {
             // reject event
             EventLogger::guess(GetNode()->GetId(), header.GetX(), header.GetY(), header.GetVal(), REJECTED);
-            std::cout << "NOT VALIDATED\n";
+            std::cout << "NOT VALIDATED: event not found\n";
             return;
         }
-    }
-
-    // If the event can be validated then
-    // verify the signatures cryptographically but this has not been implemented
-    // therefore we are just making sure we aren't signing a packet twice
-    bool valid = true;
-    AggregateSignatureTrailer trailer;
-    for (int i =0; i < header.GetSignatureCount(); i++)
-    {
-        p->RemoveTrailer(trailer);
-        // obviously fake validation
-        if (trailer.GetSignature() == GetNode()->GetId())
-        {
-            valid = false;
-            break;
-        }
-
-    }
-    if (!valid)
-    {
-        EventLogger::guess(GetNode()->GetId(), header.GetX(), header.GetY(), header.GetVal(), REJECTED);
-        std::cout << "ALREADY SIGNED \n";
-        return;
     }
 
     // If the packet needs more validations then
@@ -239,31 +219,22 @@ void AggregateApplication::ReceiveEventPacket(Ptr<Socket> socket)
     std::cout << "ACCEPTED: ";
     EventLogger::guess(GetNode()->GetId(), header.GetX(), header.GetY(), header.GetVal(), ACCEPTED);
     AggregateEventHeader newHeader;
+    copy->RemoveHeader(newHeader);
     if (header.GetSignatureCount() < 3)
     {
-        copy->PeekHeader(newHeader);
         newHeader.IncrementSignatureCount();
-
         AggregateSignatureTrailer trailer;
         trailer.SetSignature(GetNode()->GetId());
         copy->AddTrailer(trailer);
-        std::cout << "ADDED OWN TRAILER ";
+        std::cout << "ADDED OWN TRAILER\n\t";
     }
+    copy->AddHeader(newHeader);
     // Try and send it to other groups
     if (newHeader.GetSignatureCount() >= 3)
     {
         SendToOtherGroups(copy);
     }
-    bool sent = SendToNearbyNodes(copy);
-    if (sent)
-    {
-        std::cout << "SENT PACKET\n";
-        m_recentEvents.push_back(event);
-    }
-    else
-    {
-        std::cout << "BUT NO CAR IN SAME GROUP FOUND\n";
-    }
+    SendToNearbyNodes(copy);
 }
 
 /**
@@ -284,12 +255,16 @@ bool AggregateApplication::SendToNearbyNodes(Ptr<Packet> p)
     int groupId = Group::GetGroup(position.x, position.y);
 
     // TODO: stop using the direct access to m_reachableNodes and find other methods
-    std::cout << GetNode()->GetId() << ": no of things in bsm nodes " << m_bsmApplication->m_reachableNodes.size() << std::endl;
     std::string debugMessage;
     debugMessage += std::to_string(GetNode()->GetId());
-    debugMessage += std::string(": sending it to: ");
+    debugMessage += std::string(": sending in same group to: ");
+
+    int actuallyReachableNodes = 0;
     for (auto const &x : m_bsmApplication->m_reachableNodes)
     {
+        if (x.second->groupId != -1)
+            actuallyReachableNodes++;
+
         if (x.second->groupId == groupId)
         {
             InetSocketAddress remote = InetSocketAddress(getNodeAddress(x.first), m_eventPort);
@@ -301,6 +276,7 @@ bool AggregateApplication::SendToNearbyNodes(Ptr<Packet> p)
             debugMessage += std::string(" ");
         }
     }
+    std::cout << GetNode()->GetId() << ": no of valid things in bsm nodes " << actuallyReachableNodes << std::endl;
     if (sent)
     {
         std::cout << debugMessage << std::endl;
@@ -308,6 +284,11 @@ bool AggregateApplication::SendToNearbyNodes(Ptr<Packet> p)
     return sent;
 }
 
+/**
+ * Function to send a packet to nodes in other groups
+ * @param p Packet to send
+ * @return whether anything was sent or not
+ */
 bool AggregateApplication::SendToOtherGroups(Ptr <Packet> p) {
     bool sent = false;
     auto position = GetNode()->GetObject<MobilityModel>()->GetPosition();
@@ -319,8 +300,15 @@ bool AggregateApplication::SendToOtherGroups(Ptr <Packet> p) {
     int groupId = Group::GetGroup(position.x, position.y);
 
     // TODO: stop using the direct access to m_reachableNodes and find other methods
+    std::string debugMessage;
+    debugMessage += std::to_string(GetNode()->GetId());
+    debugMessage += std::string(": sending in other groups to: ");
+    int actuallyReachableNodes = 0;
     for (auto const &x : m_bsmApplication->m_reachableNodes)
     {
+        if (x.second->groupId != -1)
+            actuallyReachableNodes++;
+
         if (x.second->groupId != groupId && x.second->groupId != -1)
         {
             InetSocketAddress remote = InetSocketAddress(getNodeAddress(x.first), m_eventPort);
@@ -328,7 +316,14 @@ bool AggregateApplication::SendToOtherGroups(Ptr <Packet> p) {
             socket->Send(p);
             if (!sent)
                 sent = true;
+            debugMessage += std::to_string(x.first->GetId());
+            debugMessage += std::string(" ");
         }
+    }
+    std::cout << GetNode()->GetId() << ": no of valid things in bsm nodes " << actuallyReachableNodes << std::endl;
+    if (sent)
+    {
+        std::cout << debugMessage << std::endl;
     }
     return sent;
 }
