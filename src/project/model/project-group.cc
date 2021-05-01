@@ -21,7 +21,7 @@ int Group::GetGroup(int x, int y) {
     int rowindex = x / cellSize.Get();
     int colindex = y / cellSize.Get();
 
-    int rowid = rowindex + colindex*groupsPerRow;
+    int rowid = rowindex * groupsPerRow + colindex;
 
     return rowid;
 }
