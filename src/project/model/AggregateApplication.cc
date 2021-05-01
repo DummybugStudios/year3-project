@@ -119,7 +119,7 @@ void AggregateApplication::StartApplication()
     // Start polling with a bit of delay since if a group starts off near an event
     // Only one car detects the message so there's only one car releasing the message
     // Otherwise there will be conflict in the group about which car's message gets signed
-    Simulator::Schedule(MilliSeconds(1000 + m_unirv->GetInteger(0,10.0f)), &AggregateApplication::PollForEvents, this);
+    Simulator::Schedule(MilliSeconds(1000 + m_unirv->GetInteger(0,100)), &AggregateApplication::PollForEvents, this);
 }
 
 void AggregateApplication::PollForEvents()
@@ -130,28 +130,26 @@ void AggregateApplication::PollForEvents()
     GlobalValue::GetValueByName("VRCthreshold", threshold);
     std::vector<RoadEvent *> events =  RoadEventManger::getReachableEvents((int)position.x, (int)position.y, threshold.Get());
 
-    if (!events.empty())
+    // Create a packet
+    for (RoadEvent * const &event : events)
     {
-        // Create a packet
-        for (RoadEvent * const &event : events)
-        {
-            Ptr<Packet> p = Create<Packet>();
-            AggregateEventHeader header;
-            int value = isEvil ? 909090 : event->val;
-            header.SetData(event->x, event->y, value, 1);
-            p->AddHeader(header);
+        Ptr<Packet> p = Create<Packet>();
+        AggregateEventHeader header;
+        int value = isEvil ? 909090 : event->val;
+        header.SetData(event->x, event->y, value, 1);
+        p->AddHeader(header);
 
-            // TODO: find out if this creates some sort of memory leak
-            AggregateSignatureTrailer trailer;
-            trailer.SetSignature(GetNode()->GetId());
-            p->AddTrailer(trailer);
+        // TODO: find out if this creates some sort of memory leak
+        AggregateSignatureTrailer trailer;
+        trailer.SetSignature(GetNode()->GetId());
+        p->AddTrailer(trailer);
 
-            std::cout << Simulator::Now().GetMilliSeconds()/1000.0f<<"s "<<GetNode()->GetId() <<": (" << event->x << ", " << event->y<< "):" << event->val << std::endl;
+        std::cout << Simulator::Now().GetMilliSeconds()/1000.0f<<"s "<<GetNode()->GetId() <<": (" << event->x << ", " << event->y<< "):" << event->val << std::endl;
 
-            SendToNearbyNodes(p);
-        }
+        SendToNearbyNodes(p);
     }
-    Simulator::Schedule(MilliSeconds(1000 + m_unirv->GetInteger(0,10.0f)), &AggregateApplication::PollForEvents, this);
+
+    Simulator::Schedule(MilliSeconds(1000 + m_unirv->GetInteger(0,100)), &AggregateApplication::PollForEvents, this);
 }
 
 void AggregateApplication::ReceiveEventPacket(Ptr<Socket> socket)
@@ -166,11 +164,13 @@ void AggregateApplication::ReceiveEventPacket(Ptr<Socket> socket)
 
     // Only continue with the event if you HAVEN'T already signed it
     // This loop can also cryptographically validate the signatures
+    std::vector<uint32_t> signatures;
     bool alreadySigned = false;
     AggregateSignatureTrailer trailer;
     for (int i =0; i < header.GetSignatureCount(); i++)
     {
         p->RemoveTrailer(trailer);
+        signatures.push_back(trailer.GetSignature());
         if (trailer.GetSignature() == GetNode()->GetId())
         {
             alreadySigned = true;
@@ -181,15 +181,19 @@ void AggregateApplication::ReceiveEventPacket(Ptr<Socket> socket)
     if (alreadySigned)
         return;
 
+    // Make sure the event has not already been seen
+    if (AlreadySeenEvent(header))
+        return;
+
     std::cout << Simulator::Now().GetMilliSeconds()/1000.0f<<"s "<<GetNode()->GetId() << ": ";
-    std::cout << "(" << header.GetX() <<", " << header.GetY() <<") : "<<header.GetVal() << " (" << header.GetSignatureCount() << ") ";
+    std::cout << "(" << header.GetX() <<", " << header.GetY() <<") : "<<header.GetVal() << " (" << header.GetSignatureCount() << ": "<<StringFromVector(signatures)<<")" << std::endl;
 
     EventLogger::guess(GetNode()->GetId(), header.GetX(), header.GetY(), header.GetVal(), ARRIVED);
 
     // Reject if event cannot be validated
-    RoadEvent *event = nullptr;
     if (header.GetSignatureCount() < m_acceptThreshold)
     {
+        RoadEvent *event = nullptr;
         IntegerValue threshold;
         GlobalValue::GetValueByName("VRCthreshold", threshold);
         vector<RoadEvent *> events = RoadEventManger::getReachableEvents((int)position.x,(int) position.y, threshold.Get());
@@ -210,6 +214,9 @@ void AggregateApplication::ReceiveEventPacket(Ptr<Socket> socket)
             return;
         }
     }
+
+    // Update the already seen events so that this DOESN'T happen
+    UpdateAlreadySeenEvent(header);
 
     // Append your own signature and redistribute the packet
     std::cout << "ACCEPTED: ";
@@ -255,9 +262,10 @@ bool AggregateApplication::SendToNearbyNodes(Ptr<Packet> p)
     debugMessage += std::to_string(GetNode()->GetId());
     debugMessage += std::string(": sending in same group to: ");
 
+    // only send the packet to one node in your group
     for (auto const &x : m_bsmApplication->m_reachableNodes)
     {
-        if (x.second->groupId == groupId)
+        if (x.second->groupId == groupId && !IsNodeInTrailer(p, x.first->GetId()))
         {
             InetSocketAddress remote = InetSocketAddress(getNodeAddress(x.first), m_eventPort);
             socket->Connect(remote);
@@ -265,7 +273,8 @@ bool AggregateApplication::SendToNearbyNodes(Ptr<Packet> p)
             if (!sent)
                 sent = true;
             debugMessage += std::to_string(x.first->GetId());
-            debugMessage += std::string(" ");
+            debugMessage += " ";
+            break;
         }
     }
     if (sent)
@@ -296,11 +305,13 @@ bool AggregateApplication::SendToOtherGroups(Ptr <Packet> p) {
     debugMessage += std::string(": sending in other groups to: ");
 
     // Pick one node from each group and send them a message
+    // Make sure node is not in the trailer already
     std::vector<int> seenGroups;
     for (auto const &x : m_bsmApplication->m_reachableNodes)
     {
         if (x.second->groupId != groupId &&
-        std::find(seenGroups.begin(), seenGroups.end(), x.second->groupId) != seenGroups.end() &&
+        std::find(seenGroups.begin(), seenGroups.end(), x.second->groupId) == seenGroups.end() &&
+        !IsNodeInTrailer(p, x.first->GetId()) &&
         x.second->groupId != -1)
         {
             seenGroups.push_back(x.second->groupId);
@@ -322,5 +333,66 @@ bool AggregateApplication::SendToOtherGroups(Ptr <Packet> p) {
 
 void AggregateApplication::StopApplication()
 {
+}
+
+std::string AggregateApplication::StringFromVector(vector<uint32_t> &vec) {
+    std::string retval;
+    for (auto const &x : vec)
+    {
+        retval += std::to_string(x);
+        retval += " ";
+    }
+    return retval;
+}
+
+bool AggregateApplication::IsNodeInTrailer(Ptr<Packet> &p, uint32_t nodeid) {
+    auto copy = p->Copy();
+    AggregateEventHeader header;
+    copy->RemoveHeader(header);
+
+    AggregateSignatureTrailer trailer;
+    for ( int i = 0; i < header.GetSignatureCount(); i++)
+    {
+        copy->RemoveTrailer(trailer);
+        if (trailer.GetSignature() == nodeid)
+            return true;
+    }
+    return false;
+}
+
+bool AggregateApplication::AlreadySeenEvent(const AggregateEventHeader& header) {
+    for (auto const &x : m_alreadySeen)
+    {
+//        std::cout << "\t" << GetNode()->GetId() << ": seen: " << x << std::endl;
+        if (header.GetX() == x.GetX() &&
+            header.GetY() == x.GetY() &&
+            header.GetVal() == x.GetVal() &&
+            header.GetSignatureCount() <= x.GetSignatureCount())
+        {
+//            std::cout << "\t" << GetNode()->GetId() << ": Already seen " << header << std::endl<<std::endl;
+            return true;
+        }
+    }
+    return false;
+}
+
+void AggregateApplication::UpdateAlreadySeenEvent(const AggregateEventHeader& header) {
+    m_alreadySeen.push_back(header);
+//    bool found = false;
+//    for (auto &x : m_alreadySeen)
+//    {
+//        if (header.GetX() == x.GetX() &&
+//        header.GetY() == x.GetY() &&
+//        header.GetVal() == x.GetVal())
+//        {
+//            found = true;
+//            x.SetSignatureCount(header.GetSignatureCount());
+//        }
+//    }
+//
+//    if (!found)
+//    {
+//        m_alreadySeen.push_back(header);
+//    }
 }
 

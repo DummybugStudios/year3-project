@@ -45,6 +45,11 @@ public:
         m_signatureCount++;
     }
 
+    void SetSignatureCount(uint32_t count)
+    {
+        m_signatureCount = count;
+    }
+
     static TypeId GetTypeId();
     virtual TypeId GetInstanceTypeId() const{return GetTypeId();}
     virtual void Serialize(Buffer::Iterator start) const;
@@ -102,12 +107,18 @@ class AggregateApplication : public Application
     void ReceiveEventPacket(Ptr<Socket> socket);
     bool SendToNearbyNodes(Ptr<Packet> p);
     bool SendToOtherGroups(Ptr<Packet> p);
+    bool AlreadySeenEvent (const AggregateEventHeader& header);
+    void UpdateAlreadySeenEvent(const AggregateEventHeader& header);
+    static bool IsNodeInTrailer (Ptr<Packet> &p, uint32_t nodeid);
+    // Debug
+    std::string StringFromVector(std::vector<uint32_t>& vec);
     bool isEvil;
     Ptr<UniformRandomVariable> m_unirv;
     int m_eventPort = 1080;    ///< Port for event communication
     Ptr<Socket> m_eventSocket;
     Ptr<ProjectBsmApplication> m_bsmApplication;
     constexpr static int m_acceptThreshold = 3;
+    std::vector<AggregateEventHeader> m_alreadySeen;
 };
 
 #endif
