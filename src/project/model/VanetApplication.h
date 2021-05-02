@@ -11,6 +11,7 @@
 #include "ns3/application.h"
 #include "ns3/header.h"
 #include "ns3/socket.h"
+#include "RoadEvents.h"
 
 
 using namespace ns3;
@@ -56,11 +57,11 @@ class VanetApplication : public Application
     virtual void StartApplication();
     virtual void StopApplication();
     void StartLoop();
+    std::vector<RoadEvent *> GetReachableEvents();
     void ReceiveEventPacket(Ptr<Socket> socket);
 
 
     bool isEvil;
-    int getEventInfo();
     int m_port;
     Ptr<Socket> m_socket;
 };

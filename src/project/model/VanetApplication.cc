@@ -10,7 +10,6 @@
 
 #include "VanetApplication.h"
 
-#include "RoadEvents.h"
 #include "EventLogger.h"
 
 using namespace ns3;
@@ -104,8 +103,22 @@ void VanetApplication::ReceiveEventPacket(Ptr<Socket> socket)
 
     std::cout << "(" << header.GetX() <<", " << header.GetY() <<") : "<<header.GetVal()<<std::endl;
 
-    // Notify the event logger about the event arriving and immediately accept it
+    // Notify the event logger about the event arriving
     EventLogger::guess(GetNode()->GetId(), header.GetX(), header.GetY(), header.GetVal(), ARRIVED);
+
+    // See if you can trivially reject it first otherwise accept
+    std::vector<RoadEvent *> events =  GetReachableEvents();
+    for (auto const &event : events)
+    {
+        if (event->x == (int) header.GetX() &&
+        event->y == (int) header.GetY() &&
+        event->val != (int) header.GetVal())
+        {
+            EventLogger::guess(GetNode()->GetId(), header.GetX(), header.GetY(), header.GetVal(), REJECTED);
+            return;
+        }
+    }
+
     EventLogger::guess(GetNode()->GetId(), header.GetX(), header.GetY(), header.GetVal(), ACCEPTED);
 }
 
@@ -114,12 +127,8 @@ void VanetApplication::StartLoop()
 {
     Simulator::Schedule (Seconds(1),&VanetApplication::StartLoop, this);
 
-    auto position  = GetNode()->GetObject<MobilityModel>()->GetPosition();
-
-    IntegerValue threshold;
-    GlobalValue::GetValueByName("VRCthreshold", threshold);
-    RoadEvent *event = RoadEventManger::getNearestEvent((int)position.x, (int)position.y, threshold.Get());
-    if (event != nullptr)
+    std::vector<RoadEvent *> events = GetReachableEvents();
+    for (auto const &event : events)
     {
         if (!m_socket)
         {
@@ -155,4 +164,11 @@ void VanetApplication::StartLoop()
 
 void VanetApplication::StopApplication()
 {
+}
+
+std::vector<RoadEvent *> VanetApplication::GetReachableEvents() {
+    auto position  = GetNode()->GetObject<MobilityModel>()->GetPosition();
+    IntegerValue threshold;
+    GlobalValue::GetValueByName("VRCthreshold", threshold);
+    return RoadEventManger::getReachableEvents((int)position.x, (int)position.y, threshold.Get());
 }
