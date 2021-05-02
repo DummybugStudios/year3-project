@@ -8,7 +8,7 @@
 
 using namespace ns3;
 
-std::map<Ipv4Address, double> RSUApplication::m_reputations{};
+std::map<Ipv4Address, std::map<Ipv4Address, double>> RSUApplication::m_reputations{};
 
 TypeId RSUApplication::GetTypeId() {
     static TypeId tid = TypeId("RSUApplication")
@@ -46,9 +46,21 @@ void RSUApplication::ReceiveReputationPacket(Ptr<Socket> socket) {
         return;
 
     auto search = m_reputations.find(ipv4Address);
-    double reputation = 0.5f;
+    double reputation = 0.0f;
+
     if (search != m_reputations.end())
-        reputation = search->second;
+    {
+        // Calculate an average of the scores
+        auto& mapOfReputations = search->second;
+        for (auto const &x : mapOfReputations)
+        {
+            reputation += x.second;
+        }
+        reputation /= mapOfReputations.size();
+    }
+    else {
+         reputation = 0.5f;
+    }
 
     header.SetData(header.GetAddress(), false, reputation, true);
     p->AddHeader(header);
@@ -59,10 +71,24 @@ void RSUApplication::ReceiveReputationPacket(Ptr<Socket> socket) {
 
 void RSUApplication::ReceiveNotifyPacket(Ptr<Socket> socket) {
     Address address;
-    socket->RecvFrom(address);
+    Ptr<Packet> recv = socket->RecvFrom(address);
+    // Empty packet to act as acknowledgement
     Ptr<Packet> p = Create<Packet>();
 
     InetSocketAddress remote = InetSocketAddress::ConvertFrom(address);
+    Ipv4Address ipv4 = remote.GetIpv4();
+
+    ReputationCountHeader countHeader;
+    recv->RemoveHeader(countHeader);
+
+    for (unsigned int i = 0; i < countHeader.GetCount(); i++)
+    {
+        ReputationHeader header;
+        recv->RemoveHeader(header);
+        auto targetAddr = Ipv4Address(header.GetAddress());
+        m_reputations[targetAddr][ipv4] = header.GetReputationValue();
+    }
+
     m_notificationSocket->SendTo(p,0,remote);
 }
 

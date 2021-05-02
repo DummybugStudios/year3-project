@@ -21,7 +21,7 @@ private:
     void StopApplication(void) override;
     void ReceiveReputationPacket(Ptr<Socket> socket);
     void ReceiveNotifyPacket(Ptr<Socket> socket);
-    static std::map<Ipv4Address, double> m_reputations;
+    static std::map<Ipv4Address, std::map<Ipv4Address, double>>  m_reputations;
     Ptr<Socket> m_reputationSocket;
     Ptr<Socket> m_notificationSocket;
     constexpr static int m_reputationPort = 1081;
