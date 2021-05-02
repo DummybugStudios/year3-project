@@ -87,10 +87,21 @@ void TRIPApplication::StartApplication() {
     local = InetSocketAddress(Ipv4Address::GetAny(), m_reputationPort);
     m_reputationSocket->Bind(local);
 
+    // Initialise the m_rsuNotifySocket
+    m_rsuNotifySocket = Socket::CreateSocket(GetNode(), tid);
+    m_rsuNotifySocket->SetRecvCallback(MakeCallback(&TRIPApplication::HandleRSUConfirmations, this));
+    m_rsuNotifySocket->SetAllowBroadcast(true);
+
     // Schedule with some random delay to avoid collisions
     Simulator::Schedule(
             MilliSeconds(1000 + m_unirv->GetInteger(0,10.0f)),
             &TRIPApplication::PollForEvents,
+            this);
+
+    // Schedule sending to an RSU
+    Simulator::Schedule(
+            MilliSeconds((3000 + m_unirv->GetInteger(0, 100))),
+            &TRIPApplication::SendReputationsToRSU,
             this);
 }
 
@@ -413,6 +424,7 @@ void TRIPApplication::HandleEventVerification(const UnverifiedEventEntry &event,
     }
 
     m_reputations[event.notification.referrer] = reputation;
+    m_reputationsNotNotified[event.notification.referrer] = reputation;
 
     // punish or reward reputations
     for (auto const &x : *event.peerScores)
@@ -455,4 +467,65 @@ void TRIPApplication::HandleEventVerification(const UnverifiedEventEntry &event,
 
         m_weights[x.referrerAddress] = weight;
     }
+}
+
+/**
+ * Every so often notify an RSU about your current set of reputations
+ */
+void TRIPApplication::SendReputationsToRSU() {
+    Simulator::Schedule(MilliSeconds(3000 + m_unirv->GetInteger(0,100)), &TRIPApplication::SendReputationsToRSU, this);
+    if (m_reputationsNotNotified.empty())
+        return;
+
+    Ptr<Packet> p = Create<Packet>();
+    for (auto const &x : m_reputationsNotNotified)
+    {
+        ReputationHeader header;
+        header.SetData(x.first.Get(), false, x.second);
+        p->AddHeader(header);
+    }
+    ReputationCountHeader header;
+    header.SetData(m_reputationsNotNotified.size());
+    p->AddHeader(header);
+
+    InetSocketAddress remote = InetSocketAddress("255.255.255.255", 1082);
+    m_rsuNotifySocket->Connect(remote);
+    m_rsuNotifySocket->Send(p);
+}
+
+
+void TRIPApplication::HandleRSUConfirmations(Ptr<Socket> p) {
+    m_reputationsNotNotified.clear();
+}
+
+
+/*
+ * Implementation For ReputationCountHeader starts here
+ */
+TypeId ReputationCountHeader::GetTypeId() {
+    static TypeId tid = TypeId("ReputationCountHeader")
+            .SetParent<Header>()
+            .AddConstructor<ReputationCountHeader>();
+    return tid;
+}
+
+uint32_t ReputationCountHeader::GetSerializedSize(void) const {
+    return sizeof(m_count);
+}
+
+void ReputationCountHeader::Serialize(Buffer::Iterator start) const {
+    start.WriteU32(m_count);
+}
+
+uint32_t ReputationCountHeader::Deserialize(Buffer::Iterator start) {
+    m_count = start.ReadU32();
+    return GetSerializedSize();
+}
+
+void ReputationCountHeader::Print(ostream &os) const {
+    os << "count = " << m_count;
+}
+
+TypeId ReputationCountHeader::GetInstanceTypeId(void) const {
+    return GetTypeId();
 }

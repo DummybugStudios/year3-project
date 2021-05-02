@@ -24,6 +24,11 @@ void RSUApplication::StartApplication(void) {
     InetSocketAddress local = InetSocketAddress(Ipv4Address::GetAny(), m_reputationPort);
     m_reputationSocket->Bind(local);
     m_reputationSocket->SetRecvCallback(MakeCallback(&RSUApplication::ReceiveReputationPacket, this));
+
+    m_notificationSocket = Socket::CreateSocket(GetNode(), tid);
+    local = InetSocketAddress(Ipv4Address::GetAny(), 1082);
+    m_notificationSocket->Bind(local);
+    m_notificationSocket->SetRecvCallback(MakeCallback(&RSUApplication::ReceiveNotifyPacket, this));
 }
 
 void RSUApplication::StopApplication(void) {
@@ -50,5 +55,14 @@ void RSUApplication::ReceiveReputationPacket(Ptr<Socket> socket) {
 
     socket->Connect(remote);
     socket->Send(p);
+}
+
+void RSUApplication::ReceiveNotifyPacket(Ptr<Socket> socket) {
+    Address address;
+    socket->RecvFrom(address);
+    Ptr<Packet> p = Create<Packet>();
+
+    InetSocketAddress remote = InetSocketAddress::ConvertFrom(address);
+    m_notificationSocket->SendTo(p,0,remote);
 }
 

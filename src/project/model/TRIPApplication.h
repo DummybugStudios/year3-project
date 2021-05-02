@@ -18,6 +18,32 @@
 
 using namespace ns3;
 
+class ReputationCountHeader : public Header {
+public:
+    static TypeId GetTypeId();
+
+    ReputationCountHeader():m_count(0){};
+
+    void SetData(uint32_t count){
+        m_count = count;
+    };
+
+    uint32_t GetCount() {return m_count;}
+    uint32_t GetSerializedSize(void) const override;
+
+    void Serialize(Buffer::Iterator start) const override;
+
+    uint32_t Deserialize(Buffer::Iterator start) override;
+
+    void Print(ostream &os) const override;
+
+    TypeId GetInstanceTypeId(void) const override;
+
+private:
+    uint32_t m_count;
+
+};
+
 class ReputationHeader: public Header
 {
 public:
@@ -110,12 +136,15 @@ private:
     void ReceiveReputationPacket(Ptr<Socket> socket);
     void HandleEventVerification(const UnverifiedEventEntry &event, bool isTrue);
     TrustLevel DetermineTrustLevel(const Ipv4Address &address);
+    void SendReputationsToRSU();
+    void HandleRSUConfirmations(Ptr<Socket> p);
     static double GetNormalDistribution (double x, double mean, double sd);
     bool isEvil;
     int m_eventPort = 1080; ///< Port for communication about events
     int m_reputationPort = 1081; ///< Port for communication about reputation
     Ptr<Socket> m_eventSocket;
     Ptr<Socket> m_reputationSocket;
+    Ptr<Socket> m_rsuNotifySocket;
     Ptr<UniformRandomVariable> m_unirv;
     // These three must add up to 1
     constexpr static double m_directTrustWeight = 0.3; ///< Weighting of a vehicle's own experience
@@ -138,6 +167,7 @@ private:
     std::map<Ipv4Address, double> m_weights;
     std::vector<EventNotification> m_alreadySeenEvents;
     std::vector<UnverifiedEventEntry> m_unverifiedEvents;
+    std::map<Ipv4Address, double> m_reputationsNotNotified;
 };
 
 
