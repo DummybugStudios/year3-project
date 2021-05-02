@@ -111,12 +111,7 @@ void TRIPApplication::StopApplication() {
 
 void TRIPApplication::PollForEvents() {
 
-    auto position = GetNode()->GetObject<MobilityModel>()->GetPosition();
-    IntegerValue threshold;
-    GlobalValue::GetValueByName("VRCthreshold", threshold);
-
-    std::vector<RoadEvent *> events = RoadEventManger::getReachableEvents(
-            (int)position.x,(int) position.y, threshold.Get());
+    std::vector<RoadEvent *> events = GetReachableEvents();
 
     // For each event verify them and/or
     for (const auto &event : events)
@@ -199,6 +194,30 @@ void TRIPApplication::ReceiveEventPacket(Ptr <Socket> socket){
         .notification = eventNotification,
         .peerScores = peerScores
     };
+
+    // Check if you can trivially accept or reject the event
+    // TODO: this code is repeated and can be made a function
+    std::vector<RoadEvent *> events = GetReachableEvents();
+    for (const auto &x : events)
+    {
+        if (x->x == (int) eventHeader.GetX() && x->y == (int)eventHeader.GetY())
+        {
+            if (x->val == (int)eventHeader.GetVal())
+            {
+                EventLogger::guess(GetNode()->GetId(), x->x , x->y, x->val, ACCEPTED);
+                HandleEventVerification(unverifiedEventEntry, true);
+            }
+            else
+            {
+                EventLogger::guess(GetNode()->GetId(), x->x , x->y, eventHeader.GetVal(), REJECTED);
+                HandleEventVerification(unverifiedEventEntry, false);
+            }
+            return;
+        }
+    }
+
+    // Did not push back earlier because otherwise we would have had to then immediately delete it
+    // if it was trivially verified
     m_unverifiedEvents.push_back(unverifiedEventEntry);
 
     auto search = m_carsBeingEvaluated.find(peerAddress);
@@ -426,7 +445,7 @@ void TRIPApplication::HandleEventVerification(const UnverifiedEventEntry &event,
     m_reputations[event.notification.referrer] = reputation;
     m_reputationsNotNotified[event.notification.referrer] = reputation;
 
-    // punish or reward reputations
+    // punish or reward weights of peers
     for (auto const &x : *event.peerScores)
     {
         // TODO: have a default reputation value instead of using 0.5 everywhere
@@ -496,6 +515,16 @@ void TRIPApplication::SendReputationsToRSU() {
 
 void TRIPApplication::HandleRSUConfirmations(Ptr<Socket> p) {
     m_reputationsNotNotified.clear();
+}
+
+std::vector<RoadEvent *> TRIPApplication::GetReachableEvents()
+{
+    auto position = GetNode()->GetObject<MobilityModel>()->GetPosition();
+    IntegerValue threshold;
+    GlobalValue::GetValueByName("VRCthreshold", threshold);
+
+    return RoadEventManger::getReachableEvents(
+            (int)position.x,(int) position.y, threshold.Get());
 }
 
 

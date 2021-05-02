@@ -135,6 +135,7 @@ private:
     void ReceiveEventPacket(Ptr<Socket> socket);
     void ReceiveReputationPacket(Ptr<Socket> socket);
     void HandleEventVerification(const UnverifiedEventEntry &event, bool isTrue);
+    std::vector<RoadEvent *> GetReachableEvents();
     TrustLevel DetermineTrustLevel(const Ipv4Address &address);
     void SendReputationsToRSU();
     void HandleRSUConfirmations(Ptr<Socket> p);
