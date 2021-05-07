@@ -189,11 +189,25 @@ void TRIPApplication::ReceiveEventPacket(Ptr <Socket> socket){
     m_alreadySeenEvents.push_back(eventNotification);
 
     // Make the event unverified
-    auto peerScores = std::make_shared<std::vector<PeerScores>>();
     UnverifiedEventEntry unverifiedEventEntry{
         .notification = eventNotification,
-        .peerScores = peerScores
+        .peerScores = nullptr
     };
+
+    // Decide if a new peerscores list needs to be created or if the old one works
+    auto search = m_carsBeingEvaluated.find(peerAddress);
+    if (search == m_carsBeingEvaluated.end())
+    {
+        auto peerScores = std::make_shared<std::vector<PeerScores>>();
+        m_carsBeingEvaluated[peerAddress] = Scores{
+                .peerScores = peerScores,
+                .didRsuReply=false};
+        unverifiedEventEntry.peerScores = peerScores;
+    }
+    else
+    {
+        unverifiedEventEntry.peerScores = search->second.peerScores;
+    }
 
     // Check if you can trivially accept or reject the event
     // TODO: this code is repeated and can be made a function
@@ -219,14 +233,6 @@ void TRIPApplication::ReceiveEventPacket(Ptr <Socket> socket){
     // Did not push back earlier because otherwise we would have had to then immediately delete it
     // if it was trivially verified
     m_unverifiedEvents.push_back(unverifiedEventEntry);
-
-    auto search = m_carsBeingEvaluated.find(peerAddress);
-    if (search == m_carsBeingEvaluated.end())
-    {
-        m_carsBeingEvaluated[peerAddress] = Scores{
-            .peerScores = peerScores,
-            .didRsuReply=false};
-    }
     m_packets[peerAddress].push_back(recvPacket);
 
     // Request reputation from other vehicles

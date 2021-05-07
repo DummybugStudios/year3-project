@@ -23,6 +23,12 @@
 
 using namespace ns3;
 
+void printTimeEverySecond()
+{
+    std::cout << "t = " << Simulator::Now().GetSeconds() << "s" << std::endl;
+    Simulator::Schedule(Seconds(1), &printTimeEverySecond);
+}
+
 void receiveReputationPacket(Ptr<Socket>);
 
 void bindSocketToReceiveReputation(Ptr<Socket> &socket)
@@ -32,11 +38,11 @@ void bindSocketToReceiveReputation(Ptr<Socket> &socket)
     socket->Bind(local);
 }
 
-void sendEventPacket(Ptr<Socket> &socket, Ipv4InterfaceContainer &interfaces)
+void sendEventPacket(Ptr<Socket> &socket, RoadEvent &event, Ipv4InterfaceContainer &interfaces)
 {
     // Send two event headers
     EventPacketHeader header;
-    header.SetData(10,20,9090);
+    header.SetData(event.x,event.y,event.val);
     Ptr<Packet> p = Create<Packet>();
     p->AddHeader(header);
     InetSocketAddress remote = InetSocketAddress(interfaces.GetAddress(0), 1080);
@@ -52,7 +58,7 @@ void receiveReputationPacket(Ptr<Socket> socket)
 void sendReputationFor(Ipv4Address address, Ipv4InterfaceContainer &interfaces, Ptr<Socket> &socket)
 {
     ReputationHeader header;
-    header.SetData(address.Get(), false, 0.3f);
+    header.SetData(address.Get(), false, 0.9f);
 
     Ptr<Packet> p = Create<Packet>();
     p->AddHeader(header);
@@ -69,7 +75,7 @@ int main( int argc, char **argv)
                                    ns3::IntegerValue(50),
                                    ns3::MakeIntegerChecker<int>());
     NodeContainer nodes;
-    nodes.Create(3);
+    nodes.Create(5);
 
     CsmaHelper csmaHelper;
     NetDeviceContainer devices;
@@ -104,24 +110,24 @@ int main( int argc, char **argv)
     TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
     Ptr<Socket> socket1 = Socket::CreateSocket(nodes.Get(1), tid);
     Ptr<Socket> socket2 = Socket::CreateSocket(nodes.Get(2), tid);
-    bindSocketToReceiveReputation(socket1);
-    bindSocketToReceiveReputation(socket2);
+    Ptr<Socket> socket3 = Socket::CreateSocket(nodes.Get(3), tid);
+    Ptr<Socket> socket4 = Socket::CreateSocket(nodes.Get(4), tid);
 
-    // Make two nodes each send an event
-    // nodes[1] and then nodes[2]
-    Simulator::Schedule(Seconds(2), &sendEventPacket,socket1, interfaces);
-    Simulator::Schedule(Seconds(3), &sendEventPacket,socket2, interfaces);
+    RoadEvent event(10,20,30);
+    RoadEvent event2(10,40,40);
 
-    // Make socket 1 send the same event again
-    // The thingy should not accept it
-    Simulator::Schedule(Seconds(3.1), &sendEventPacket,socket1, interfaces);
+    // Send two separate events
+    Simulator::Schedule(Seconds(2), &sendEventPacket, socket1, event, interfaces);
 
-    // Send responses in a different order
-    // nodes[2] and then nodes[1]
-    // It should print them in reverese order too
-    Simulator::Schedule(Seconds(4), &sendReputationFor, interfaces.GetAddress(1), interfaces, socket2);
-    Simulator::Schedule(Seconds(5), &sendReputationFor, interfaces.GetAddress(2), interfaces, socket1);
+    // Send three reputations telling node 0 that node 1 is a lovely dude
+    Simulator::Schedule(Seconds(3), &sendReputationFor, interfaces.GetAddress(1), interfaces, socket2);
+    Simulator::Schedule(Seconds(4), &sendReputationFor, interfaces.GetAddress(1), interfaces, socket3);
+    Simulator::Schedule(Seconds(5), &sendReputationFor, interfaces.GetAddress(1), interfaces, socket4);
 
+    Simulator::Schedule(Seconds(6), &sendEventPacket, socket1, event2, interfaces);
+    Simulator::Stop(Seconds(10));
+
+    Simulator::Schedule(Seconds(0), &printTimeEverySecond);
     Simulator::Run();
     Simulator::Destroy();
     return 0;

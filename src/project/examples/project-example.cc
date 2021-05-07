@@ -965,10 +965,10 @@ WifiApp::Simulate (int argc, char **argv)
   ConfigureMobility ();
   ConfigureApplications ();
   ConfigureTracing ();
-  // TODO: put in a function or remove entirely
-  AnimationInterface anim(std::string("vanet-routing-compare-animation.xml"));
-  m_anim = &anim;
-  ConfigureAnimation();
+  // TODO:put this in a static function
+  //AnimationInterface anim(std::string("vanet-routing-compare-animation.xml"));
+  //m_anim = &anim;
+  //ConfigureAnimation();
   RunSimulation ();
   ProcessOutputs ();
 }
@@ -1339,6 +1339,7 @@ private:
   int m_worldWidth; // Also the world height since I'll just keep it square innit
   int m_cellSize;
   int m_threshold; ///< Distance before an event becomes undetectable
+  int m_runNumber; ///< Decides the output thing innit
 };
 
 VanetRoutingExperiment::VanetRoutingExperiment ()
@@ -1397,7 +1398,9 @@ VanetRoutingExperiment::VanetRoutingExperiment ()
     m_exp (""),
     m_cumulativeBsmCaptureStart (0),
     m_worldWidth(1200), // You don't need this but I'm just cargo cult programming
-    m_threshold(50)
+    m_threshold(50),
+    m_runNumber(0)
+
 {
   m_wifiPhyStats = CreateObject<WifiPhyStats> ();
   m_routingHelper = CreateObject<RoutingHelper> ();
@@ -1585,16 +1588,20 @@ static ns3::GlobalValue g_trName ("VRCtrName",
                                   ns3::MakeStringChecker ());
 static ns3::GlobalValue g_worldWidth  ("VRCworldWidth",
                                        "World width and height",
-                                       ns3::IntegerValue(1200),
+                                       ns3::IntegerValue(800),
                                        ns3::MakeIntegerChecker<int>());
 
 static ns3::GlobalValue g_cellSize ("VRCcellSize",
                                     "Cell size that determines group",
-                                    ns3::IntegerValue(300),
+                                    ns3::IntegerValue(100),
                                     ns3::MakeIntegerChecker<int>());
 static ns3::GlobalValue g_threshold("VRCthreshold",
                                     "Distance before event becomes undetectable",
                                     ns3::IntegerValue(50),
+                                    ns3::MakeIntegerChecker<int>());
+static ns3::GlobalValue g_runNumber("VRCrunNumber",
+                                    "Decides output number",
+                                    ns3::IntegerValue(0),
                                     ns3::MakeIntegerChecker<int>());
 
 void
@@ -1636,8 +1643,10 @@ VanetRoutingExperiment::ConfigureNodes ()
 {
   m_adhocTxNodes.Create (m_nNodes);
   // have 10% of the nodes be RSU nodes;
-  m_rsuNodes.Create(m_nNodes * 0.1);
+  m_rsuNodes.Create(m_nNodes * 0.2);
 
+  // Setup the road events here
+  RoadEventManger::setupEvents(80, m_worldWidth, m_worldWidth);
   // Initialise the event nodes for the animation manager
   std::vector<RoadEvent> &events = RoadEventManger::getEvents();
   int size = events.size();
@@ -1757,6 +1766,13 @@ VanetRoutingExperiment::ConfigureTracing ()
 void
 VanetRoutingExperiment::ConfigureAnimation ()
 {
+
+    //Make the nodes bigger
+    for (int i =0; i < (int)m_adhocTxNodes.GetN() ; i++)
+    {
+        m_anim->UpdateNodeSize(m_adhocTxNodes.Get(i)->GetId(), 10,10);
+        m_anim->UpdateNodeColor(m_adhocTxNodes.Get(i)->GetId(), 255,255,0);
+    }
     // Make the RSU nodes bigger
     int size = m_rsuNodes.GetN();
     for (int i =0; i < size; i++)
@@ -1843,7 +1859,7 @@ void
 VanetRoutingExperiment::Run ()
 {
   NS_LOG_INFO ("Run Simulation.");
-
+  std::cout <<"trace file:" <<  m_traceFile << std::endl;
   CheckThroughput ();
 
   Simulator::Stop (Seconds (m_TotalSimTime));
@@ -1921,6 +1937,7 @@ VanetRoutingExperiment::CheckThroughput ()
 
   if (m_log != 0 )
     {
+      std::cout << "\n\n";
       NS_LOG_UNCOND ("At t=" << (Simulator::Now ()).GetSeconds () << "s BSM_PDR1=" << wavePDR1_2 << " BSM_PDR1=" << wavePDR2_2 << " BSM_PDR3=" << wavePDR3_2 << " BSM_PDR4=" << wavePDR4_2 << " BSM_PDR5=" << wavePDR5_2 << " BSM_PDR6=" << wavePDR6_2 << " BSM_PDR7=" << wavePDR7_2 << " BSM_PDR8=" << wavePDR8_2 << " BSM_PDR9=" << wavePDR9_2 << " BSM_PDR10=" << wavePDR10_2 << " Goodput=" << kbps << "Kbps" /*<< " MAC/PHY-OH=" << mac_phy_oh*/);
     }
 
@@ -2076,6 +2093,8 @@ VanetRoutingExperiment::SetConfigFromGlobals ()
   m_cellSize = integerValue.Get();
   GlobalValue::GetValueByName("VRCthreshold", integerValue);
   m_threshold = integerValue.Get();
+  GlobalValue::GetValueByName("VRCrunNumber", integerValue);
+  m_runNumber = integerValue.Get();
 }
 
 void
@@ -2134,6 +2153,7 @@ VanetRoutingExperiment::SetGlobalsFromConfig ()
   g_worldWidth.SetValue(IntegerValue(m_worldWidth));
   g_cellSize.SetValue(IntegerValue(m_cellSize));
   g_threshold.SetValue(IntegerValue(m_threshold));
+  g_runNumber.SetValue(IntegerValue(m_runNumber));
 }
 
 void
@@ -2199,6 +2219,8 @@ VanetRoutingExperiment::CommandSetup (int argc, char **argv)
   cmd.AddValue ("exp", "Experiment", m_exp);
   cmd.AddValue ("BsmCaptureStart", "Start time to begin capturing pkts for cumulative Bsm", m_cumulativeBsmCaptureStart);
   cmd.AddValue("threshold", "Distance before event becomes undetectable", m_threshold);
+  cmd.AddValue("worldwidth", "Size of the world (width == height) ", m_worldWidth);
+  cmd.AddValue("run", "The number of the result", m_runNumber);
   cmd.Parse (argc, argv);
 
   m_txSafetyRange1 = txDist1;
@@ -2552,8 +2574,8 @@ VanetRoutingExperiment::SetupScenario ()
       m_traceFile = "src/project/examples/mob/grid.ns_movements";
       m_logFile = "low99-ct-unterstrass-1day.filt.7.adj.log";
       m_mobility = 1;
-      m_nNodes = 99;
-      m_TotalSimTime = 120;
+      m_nNodes = 100;
+      m_TotalSimTime = 300.0;
       m_nodeSpeed = 0;
       m_nodePause = 0;
       m_CSVfileName = "low_vanet-routing-compare.csv";
@@ -2613,10 +2635,8 @@ main (int argc, char *argv[])
 {
   // keep road incident density the same
   // 10 / 300m^2  == 1777 / 4000m^2 
-  RoadEventManger::setupEvents(160,1200,1200);
   LogComponentEnable("VanetApplication", LOG_INFO);
   // LogComponentEnable("ProjectBsmApplication", LOG_ALL);
   VanetRoutingExperiment experiment;
   experiment.Simulate (argc, argv);
-  EventLogger::printStats();
 }
